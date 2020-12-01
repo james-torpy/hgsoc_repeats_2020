@@ -1,0 +1,19 @@
+{
+    "__default__" :
+    {
+        "cluster"   : "qsub",
+        "jobs"      : 60 ,
+        "cores"     : 2
+    },
+
+    "star" :
+    {
+        "cores"       : 10
+    },
+
+    "sort" :
+    {
+        "cores"       : 10
+    },
+
+}

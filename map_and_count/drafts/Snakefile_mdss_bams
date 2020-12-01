@@ -1,0 +1,63 @@
+# Run command:
+# snakemake --snakefile Snakefile_mdss_bams --reason --cores 120 --cluster 'qsub -pe smp 2 -N bam_mdss.smk -wd '/share/ScratchGeneral/jamtor/projects/hgsoc_repeats/RNA-seq/logs' -b y -j y -V -P TumourProgression' -j 60
+
+# DAG command:
+# snakemake --snakefile Snakefile_mdss_bams --dag | dot -Tsvg > dag_mdss_bams.svg
+
+### This script counts repeats, protein coding and ribosomal read pairs, 
+# then performs a range of DE ###
+
+import glob
+import os
+
+# define directories:
+R_dir = '/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/'
+in_dir = './results/star/GC/'
+
+# fetch sample names:
+SAMPLES = list([
+  "AOCS-085-2", "AOCS-097-2", 
+  "AOCS-086-4", "AOCS-092-4"
+])
+
+# counting parameters:
+split = 'no'
+
+#rule all:
+#    input:
+#        expand(
+#            'results/htseq/{sample}/counts.gc.custom3.htseq.txt',
+#            sample=SAMPLES, split=split
+#        )
+rule all:
+    input:
+        expand(
+            'results/star/GC/{sample}/Aligned.out.bam',
+            sample=SAMPLES
+        )
+
+rule transfer:
+    output:
+        'results/star/GC/{sample}/Aligned.out.bam'
+    threads: 2
+    shell:
+        'cd logs; ' + 
+        ' ../scripts/map_and_count/1a.transfer_bam.sh' + 
+        ' {wildcards.sample}' +
+        ' 2> {wildcards.sample}.mdss.bams.transfer.errors'
+
+#rule htseq:
+#    input:
+#        'results/star/GC/{sample}/sorted.by.name.bam'
+#    output:
+#        'results/htseq/{sample}/counts.gc.custom3.htseq.txt'
+#    threads: 2
+#    shell:
+#        'cd logs; ' + 
+#        ' ../scripts/map_and_count/3a.htseq_mmap.sh' + 
+#        ' {wildcards.sample}' +
+#        ' 2' + # cores
+#        ' {split} 2> {wildcards.sample}.mdss.bams.htseq.errors'
+
+
+
