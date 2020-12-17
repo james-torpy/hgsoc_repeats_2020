@@ -1,5 +1,7 @@
 gen_plot <- function(
-  plot_df
+  plot_df,
+  dot_col,
+  label_col
 ) {
 
   xlimit <- ceiling(max(abs(range(plot_df$logFC))))
@@ -10,11 +12,11 @@ gen_plot <- function(
     plot_df, 
     mapping = aes(x=logFC, y=-log10(FDR), color=sig)
   )
-  p <- p + scale_color_manual(values = c("grey", "#1B9E77"))
+  p <- p + scale_color_manual(values = c("grey", dot_col))
   p <- p + geom_text_repel(
     plot_df[plot_df$label,], 
     mapping = aes(label=symbol),
-    colour = "#430F82"
+    colour = label_col
   )
   p <- p + theme_cowplot(12)
   p <- p + theme(legend.position = "none")

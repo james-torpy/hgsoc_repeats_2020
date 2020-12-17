@@ -11,7 +11,17 @@
         "cores"       : 10
     },
 
+    "star_ribo" :
+    {
+        "cores"       : 10
+    },
+
     "sort" :
+    {
+        "cores"       : 10
+    },
+
+    "sort_mmap" :
     {
         "cores"       : 10
     },

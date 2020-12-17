@@ -8,16 +8,15 @@ module load gi/samtools/1.2
 numcores=6
 
 #genome directories
-genomeName="GRCh38.primary_assembly.genome"
-annotationName="gencode.v35.annotation"
-projectname="hgsoc_repeats/RNA-seq"
+species="L1MD3"
+projectname="hgsoc_repeats/RNA-seq-final2"
 
 homeDir="/share/ScratchGeneral/jamtor"
 projectDir="$homeDir/projects/$projectname"
 genomeDir="$projectDir/genome/"
-genomeFile="$genomeDir/star/$genomeName.fa"
-annotationFile="$genomeDir/$annotationName.gtf"
-outDir="$genomeDir/star"
+genomeFile="$genomeDir/$species/star/$species.fa"
+annotationFile="$genomeDir/$species.gtf"
+outDir="$genomeDir/$species/star"
 
 mkdir -p $outDir
 
@@ -42,7 +41,7 @@ echo $logDir
 
 #generate the star reference files:
 star_ref_line="STAR --runMode genomeGenerate \
-	--sjdbGTFfile $annotationFile --sjdbOverhang 74 --genomeDir $genomeDir \
+	--genomeDir $genomeDir \
 	--genomeFastaFiles $genomeFile --runThreadN $numcores --outFileNamePrefix \
 	$outDir/star_ref_"
 

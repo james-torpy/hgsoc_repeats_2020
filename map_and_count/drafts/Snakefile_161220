@@ -14,11 +14,11 @@ import os
 R_dir = '/share/ClusterShare/software/contrib/briglo/octR/src/R-3.6.0/builddir/bin/'
 in_dir = './results/star/GC/'
 
-SAMPLES = list([
+#SAMPLES = list([
     "AOCS-001-2", "AOCS-004-2", "AOCS-005-2", "AOCS-077-2", "AOCS-080-2", 
-    "AOCS-084-2", "AOCS-094-2", "AOCS-139-24", "AOCS-139-26", "AOCS-139-7", 
+    "AOCS-084-2", "AOCS-094-2", "AOCS-139-24" "AOCS-139-26" "AOCS-139-7", 
     "AOCS-153-2", "AOCS-155-4", "AOCS-158-2", "AOCS-161-2", "AOCS-162-2", 
-    "AOCS-165-2", "AOCS-166-2", "AOCS-167-27", "AOCS-167-29", "AOCS-167-4", 
+    "AOCS-165-2", "AOCS-166-2", "AOCS-167-27" "AOCS-167-29" "AOCS-167-4", 
     "AOCS-168-2", "AOCS-169-2", "AOCS-171-4"
 
 #    "AOCS-034-2", "AOCS-034-4", "AOCS-055-2", "AOCS-056-2", "AOCS-057-2", 
@@ -41,7 +41,7 @@ SAMPLES = list([
 #    "AOCS-163-2", "AOCS-164-2", "AOCS-170-2", "AOCS-170-4", "AOCS-172-31", 
 #    "AOCS-173-31", "AOCS-174-31", "AOCS-175-31", "AOCS-176-31", "AOCS-177-31", 
 #    "AOCS-178-31"
-])
+#])
 
 #rule all:
 #    input:
@@ -104,6 +104,11 @@ rule all:
             'results/star/ribo/{sample}/Aligned.out.bam',
             sample=SAMPLES
         )
+#        ,
+#        expand(
+#            'results/htseq/{sample}/counts.L1MD3.htseq.txt',
+#            sample=SAMPLES
+#        )
 
 rule transfer:
     output:
@@ -148,6 +153,22 @@ rule star_ribo:
         ' ribo' + # type
         ' 2> {wildcards.sample}.star.ribo.errors'
 
+#rule star_L1MD3:
+#    input:
+#        fq1 = 'raw_files/fastqs/{sample}_1.fastq.gz',
+#        fq2 = 'raw_files/fastqs/{sample}_2.fastq.gz'
+#    output:
+#        bam = 'results/star/L1MD3/{sample}/Aligned.out.bam',
+#        complete = 'results/star/L1MD3/{sample}/star_L1MD3_complete'
+#    threads: 10
+#    shell:
+#        'cd logs; ' + 
+#        ' ../scripts/map_and_count/2.star.sh' + 
+#        ' {wildcards.sample}' +
+#        ' 10' + # cores
+#        ' L1MD3' + # type
+#        ' 2> {wildcards.sample}.star.L1MD3.errors'
+
 rule sort:
     input:
         'results/star/GC/{sample}/Aligned.out.bam'
@@ -175,6 +196,20 @@ rule sort_mmap:
         ' mmap' + 
         ' GC' +
         ' 2> {wildcards.sample}.sort.errors'
+
+#rule L1MD3_sort:
+#    input:
+#        'results/star/L1MD3/{sample}/Aligned.out.bam'
+#    output:
+#       'results/star/L1MD3/{sample}/sorted.by.name.mmappers.bam'
+#    threads: 10
+#    shell:
+#        'cd logs; ' + 
+#        ' ../scripts/map_and_count/3.sort_and_format.sh' + 
+#        ' {wildcards.sample}' + 
+#        ' mmap' +
+#        ' L1MD3' + 
+#        ' 2> {wildcards.sample}.sort.errors'
 
 rule htseq_repeats:
     input:
@@ -208,7 +243,8 @@ rule rm_fq:
     input:
         GC = ancient('results/htseq/{sample}/counts.gc.htseq.txt'),
         repeat = ancient('results/htseq/{sample}/counts.repeats.htseq.txt'),
-        ribo = ancient('results/star/ribo/{sample}/Aligned.out.bam')
+#        ribo = ancient('results/star/ribo/{sample}/Aligned.out.bam')
+#        ,L1MD3 = 'results/star/L1MD3/{sample}/sorted.by.name.mmappers.bam'
     output:
         'results/star/GC/{sample}/fqs_removed'
     shell:
