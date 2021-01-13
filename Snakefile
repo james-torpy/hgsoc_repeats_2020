@@ -1,0 +1,232 @@
+# Run command:
+# snakemake --reason --cores 250 --cluster-config cluster.json --cluster 'qsub -pe smp {cluster.cores} -N rep_quant.smk -wd '/share/ScratchGeneral/jamtor/projects/hgsoc_repeats/RNA-seq-final/logs' -b y -j y -V -P TumourProgression' -j 110
+
+# DAG command:
+# snakemake --dag | dot -Tsvg > dag.svg
+
+### This script counts repeats, protein coding and ribosomal read pairs, 
+# then performs a range of DE ###
+
+import glob
+import os
+
+# define directories:
+in_dir = './results/star/GC/'
+
+#SAMPLES = list([
+#    "AOCS-172-31"
+#    "AOCS-001-2", "AOCS-004-2", "AOCS-005-2", "AOCS-077-2", "AOCS-080-2", 
+#    "AOCS-084-2", "AOCS-094-2", "AOCS-153-2", "AOCS-158-2", 
+#    "AOCS-161-2", "AOCS-162-2", "AOCS-165-2", "AOCS-166-2", "AOCS-167-4", 
+#    "AOCS-168-2", "AOCS-169-2", "AOCS-171-4",
+#    "AOCS-034-2", "AOCS-034-4", "AOCS-055-2", "AOCS-056-2", "AOCS-057-2", 
+#    "AOCS-058-2", "AOCS-059-2", "AOCS-060-2", "AOCS-061-2", "AOCS-063-2", 
+#    "AOCS-064-2", "AOCS-064-4", "AOCS-065-2", "AOCS-065-4", "AOCS-075-2", 
+#    "AOCS-076-2", "AOCS-078-2", "AOCS-079-2", "AOCS-081-2", "AOCS-083-2", 
+#    "AOCS-085-2", "AOCS-086-2", "AOCS-086-4", "AOCS-088-2", "AOCS-088-4", 
+#    "AOCS-090-2", "AOCS-091-2", "AOCS-091-4", "AOCS-092-2", "AOCS-092-4", 
+#    "AOCS-093-2", "AOCS-093-4", "AOCS-093-8", "AOCS-095-2", "AOCS-095-4", 
+#    "AOCS-096-2", "AOCS-097-2", "AOCS-104-2", "AOCS-105-2", "AOCS-106-2", 
+#    "AOCS-107-2", "AOCS-108-2", "AOCS-109-2", "AOCS-111-2", "AOCS-112-2", 
+#    "AOCS-113-2", "AOCS-114-2", "AOCS-115-2", "AOCS-116-2", "AOCS-117-4", 
+#    "AOCS-119-4", "AOCS-120-4", "AOCS-122-2", "AOCS-123-2", "AOCS-124-2", 
+#    "AOCS-125-2", "AOCS-126-2", "AOCS-128-2", "AOCS-130-2", "AOCS-131-2", 
+#    "AOCS-132-2", "AOCS-133-2", "AOCS-134-4", "AOCS-135-10", "AOCS-135-4", 
+#    "AOCS-137-10", "AOCS-137-4", "AOCS-138-4", "AOCS-139-2", "AOCS-141-10", 
+#    "AOCS-141-4", "AOCS-142-4", "AOCS-143-2", "AOCS-144-2", "AOCS-145-2", 
+#    "AOCS-146-2", "AOCS-147-2", "AOCS-148-2", "AOCS-149-2", "AOCS-150-10", 
+#    "AOCS-150-4", "AOCS-152-2", "AOCS-157-2", "AOCS-159-2", "AOCS-160-2", 
+#    "AOCS-163-2", "AOCS-164-2", "AOCS-170-2", "AOCS-170-4", "AOCS-172-31", 
+#    "AOCS-173-31", "AOCS-174-31", "AOCS-175-31", "AOCS-176-31", "AOCS-177-31", 
+#    "AOCS-178-31"
+#])
+
+SAMPLES = list([
+    "AOCS-172-31"
+#    # GC counts did not work for following:
+#    "AOCS-153-2", "AOCS-165-2", "AOCS-168-2", "AOCS-172-31",
+#    # repeat counts did not work for following:
+#    "AOCS-004-2", "AOCS-094-2", "AOCS-158-2", "AOCS-161-2", 
+#    "AOCS-166-2", "AOCS-169-2"
+])
+
+# done:
+#"AOCS-077-2", "AOCS-005-2", "AOCS-084-2"
+
+#rule all:
+#    input:
+#        expand(
+#            'raw_files/fastqs/{sample}_1.fastq.gz',
+#            sample=SAMPLES
+#        ),
+#        expand(
+#            'raw_files/fastqs/{sample}_2.fastq.gz',
+#            sample=SAMPLES
+#        )
+
+#rule all:
+#    input:
+#        expand(
+#            'results/star/GC/{sample}/Aligned.out.bam',
+#            sample=SAMPLES
+#        ),
+#         expand(
+#            'results/star/ribo/{sample}/Aligned.out.bam',
+#            sample=SAMPLES
+#        )
+
+#rule all:
+#    input:
+#        expand('results/star/GC/{sample}/fqs_removed',
+#            sample=SAMPLES
+#        )
+
+#rule all:
+#    input:
+#        expand(
+#            'results/star/GC/{sample}/sorted.by.name.bam',
+#            sample=SAMPLES
+#        ),
+#        expand(
+#            'results/star/GC/{sample}/sorted.by.name.mmappers.bam',
+#            sample=SAMPLES
+#        )
+
+#rule all:
+#    input:
+#        expand(
+#            'results/htseq/{sample}/counts.repeats.htseq.txt',
+#            sample=SAMPLES
+#        ),
+#        expand(
+#            'results/htseq/{sample}/counts.gc.htseq.txt',
+#            sample=SAMPLES
+#        )
+
+rule all:
+    input:
+        expand(
+            'results/star/GC/{sample}/fqs_removed',
+            sample=SAMPLES
+        )
+        ,
+        expand(
+            'results/star/ribo/{sample}/Aligned.out.bam',
+            sample=SAMPLES
+        )
+
+rule transfer:
+    output:
+        fq1='raw_files/fastqs/{sample}_1.fastq.gz',
+        fq2='raw_files/fastqs/{sample}_2.fastq.gz'
+    threads: 2
+    shell:
+        'cd logs; ' + 
+        ' ../scripts/map_and_count/1.transfer_fq.sh' + 
+        ' {wildcards.sample}' +
+        ' 2> {wildcards.sample}.transfer.errors'
+
+rule star:
+    input:
+        fq1 = ancient('raw_files/fastqs/{sample}_1.fastq.gz'),
+        fq2 = ancient('raw_files/fastqs/{sample}_2.fastq.gz')
+    output:
+        bam = 'results/star/GC/{sample}/Aligned.out.bam',
+        complete = 'results/star/GC/{sample}/star_complete'
+    threads: 10
+    shell:
+        'cd logs; ' + 
+        ' ../scripts/map_and_count/2.star.sh' + 
+        ' {wildcards.sample}' +
+        ' 10' + # cores
+        ' GC' + # type
+        ' 2> {wildcards.sample}.star.errors'
+
+rule star_ribo:
+    input:
+        fq1 = ancient('raw_files/fastqs/{sample}_1.fastq.gz'),
+        fq2 = ancient('raw_files/fastqs/{sample}_2.fastq.gz')
+    output:
+        bam = 'results/star/ribo/{sample}/Aligned.out.bam',
+        complete = 'results/star/ribo/{sample}/star_ribo_complete'
+    threads: 10
+    shell:
+        'cd logs; ' + 
+        ' ../scripts/map_and_count/2.star.sh' + 
+        ' {wildcards.sample}' +
+        ' 10' + # cores
+        ' ribo' + # type
+        ' 2> {wildcards.sample}.star.ribo.errors'
+
+rule sort:
+    input:
+        'results/star/GC/{sample}/Aligned.out.bam'
+    output:
+        'results/star/GC/{sample}/sorted.by.name.bam'
+    threads: 10
+    shell:
+        'cd logs; ' + 
+        ' ../scripts/map_and_count/3.sort_and_format.sh' + 
+        ' {wildcards.sample}' + 
+        ' smap' + 
+        ' GC' +
+        ' 2> {wildcards.sample}.sort.errors'
+
+rule sort_mmap:
+    input:
+        'results/star/GC/{sample}/Aligned.out.bam'
+    output:
+        'results/star/GC/{sample}/sorted.by.name.mmappers.bam'
+    threads: 10
+    shell:
+        'cd logs; ' + 
+        ' ../scripts/map_and_count/3.sort_and_format.sh' + 
+        ' {wildcards.sample}' + 
+        ' mmap' + 
+        ' GC' +
+        ' 2> {wildcards.sample}.sort.errors'
+
+rule htseq_repeats:
+    input:
+        ancient('results/star/GC/{sample}/sorted.by.name.mmappers.bam')
+    output:
+        'results/htseq/{sample}/counts.repeats.htseq.txt'
+    threads: 2
+    shell:
+        'cd logs; ' + 
+        ' ../scripts/map_and_count/4.htseq.sh' + 
+        ' {wildcards.sample}' +
+        ' 2' + # cores
+        ' repeats' + 
+        ' 2> {wildcards.sample}.htseq.repeats.errors'
+
+rule htseq_gc:
+    input:
+        ancient('results/star/GC/{sample}/sorted.by.name.bam')
+    output:
+        'results/htseq/{sample}/counts.gc.htseq.txt'
+    threads: 2
+    shell:
+        'cd logs; ' + 
+        ' ../scripts/map_and_count/4.htseq.sh' + 
+        ' {wildcards.sample}' +
+        ' 2' + # cores
+        ' GC' + 
+        ' 2> {wildcards.sample}.htseq.gc.errors'
+
+rule rm_fq:
+    input:
+        GC = ancient('results/htseq/{sample}/counts.gc.htseq.txt'),
+        repeat = ancient('results/htseq/{sample}/counts.repeats.htseq.txt'),
+        ribo = ancient('results/star/ribo/{sample}/Aligned.out.bam')
+    output:
+        'results/star/GC/{sample}/fqs_removed'
+    shell:
+        'if [ -f raw_files/fastqs/{wildcards.sample}_1.fastq.gz ]; then ' +
+        'rm raw_files/fastqs/{wildcards.sample}_1.fastq.gz; ' +
+        'fi; ' + 
+        'if [ -f raw_files/fastqs/{wildcards.sample}_2.fastq.gz ]; then ' +
+        'rm raw_files/fastqs/{wildcards.sample}_2.fastq.gz; ' +
+        'fi; ' + 
+        'touch {output}'
+
