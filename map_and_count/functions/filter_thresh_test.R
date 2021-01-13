@@ -1,7 +1,9 @@
 filter_thresh_test <- function(
   count_data, 
   DE_data, 
-  threshs = seq(0, 5, 0.1)
+  threshs = seq(0, 5, 0.1),
+  min_no_passed_thresh = 2,
+  plot_dir
 ) {
 
   library(ggplot2)
@@ -55,11 +57,23 @@ filter_thresh_test <- function(
   p <- p + theme_cowplot(12)
   p <- p + labs(x="CPM filter threshold", y="Number sig. genes (FDR<0.05)")
 
-  png(paste0(plot_dir, "CPM_threshold_vs_no_DE_genes.png"))
+  png(
+    paste0(
+      plot_dir, 
+      "CPM_threshold_vs_no_DE_genes_min_no_passed_thresh_", 
+      min_no_passed_thresh, ".png"
+    )
+  )
     print(p)
   dev.off()
 
-  pdf(paste0(plot_dir, "CPM_threshold_vs_no_DE_genes.pdf"))
+  pdf(
+    paste0(
+      plot_dir, 
+      "CPM_threshold_vs_no_DE_genes_min_no_passed_thresh_", 
+      min_no_passed_thresh, ".pdf"
+    )
+  )
     print(p)
   dev.off()
 

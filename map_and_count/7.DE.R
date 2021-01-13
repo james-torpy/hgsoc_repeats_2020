@@ -4,56 +4,62 @@ project_name <- "hgsoc_repeats/RNA-seq-final"
 home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", project_name, "/")
 results_dir <- paste0(project_dir, "results/")
-in_dir <- paste0(results_dir, "htseq/")
+in_dir <- paste0(results_dir, "htseq/Rdata/")
 ref_dir <- paste0(project_dir, "refs/")
 func_dir <- paste0(project_dir, "scripts/map_and_count/functions/")
 genome_dir <- paste0(project_dir, "genome/")
 col_dir <- paste0(home_dir, "R/colour_palettes/")
 
 sub <- FALSE
-div_type <- "GIN_driver"
+incl_ascites <- TRUE
 
 if (sub) {
 
-  out_dir <- paste0(
-    results_dir, "DE/DE_by_", div_type, "_sub/"
+  out_path <- paste0(
+    results_dir, "DE/sub/"
   )
 
 } else {
 
-  out_dir <- paste0(
-    results_dir, "DE/DE_by_", div_type, "/"
+  out_path <- paste0(
+    results_dir, "DE/"
   )
 
 }
 
-table_dir <- paste0(out_dir, "tables/")
-system(paste0("mkdir -p ", table_dir))
-plot_dir <- paste0(out_dir, "plots/")
-system(paste0("mkdir -p ", plot_dir))
-Robject_dir <- paste0(out_dir, "Rdata/")
-system(paste0("mkdir -p ", Robject_dir))
+if (!incl_ascites) {
+  out_path <- paste0(out_dir, "without_ascites/")
+}
+
+Robject_dir1 <- paste0(out_path, "Rdata/")
+system(paste0("mkdir -p ", Robject_dir1))
 
 
 ########################################################################
 ### 0.  Load packages and functions ###
 ########################################################################
 
-lib_loc <- paste0(home_dir, "/R/3.6.0")
-
 library(edgeR)
-library(DESeq2, lib=lib_loc)
+library(DESeq2)
+library(tibble)
+library(dplyr)
 library(ggplot2)
 library(cowplot)
-library(ggpointdensity, lib.loc=lib_loc)
+library(ggpointdensity)
 library(ggrepel)
 
-# function to calculate normalisation factors by edgeR:
-edgeR_norm_factors <- dget(paste0(func_dir, "edgeR_norm_factors.R"))
+# function to normalise and generate GLM using edgeR:
+fit_glm <- dget(paste0(func_dir, "fit_glm.R"))
+
+# function to perform DE using EdgeR:
+do_DE <- dget(paste0(func_dir, "do_DE.R"))
 
 # function to filter out genes using different CPM cutoffs and plot
 # sig genes vs number of DE genes:
 filter_thresh_test <- dget(paste0(func_dir, "filter_thresh_test.R"))
+
+# function to compare DEs:
+DE_compare <- dget(paste0(func_dir, "DE_compare.R"))
 
 # function to label top 10 up and down genes:
 label_top <- dget(paste0(func_dir, "label_top.R"))
@@ -78,15 +84,20 @@ col_pal <- read.table(
 ########################################################################
 
 # fetch aggregated counts:
-all_counts <- read.table(
-  paste0(in_dir, "combined_counts_symbols.txt"),
-  sep = "\t",
-  header = T
+all_counts <- readRDS(
+  paste0(in_dir, "all_combined_counts_ensembl_ids.Rdata")
 )
-colnames(all_counts) <- gsub("\\.", "-", colnames(all_counts))
 
 if (sub) {
-  all_counts <- all_counts[,1:10]
+  all_counts <- all_counts[
+    ,c(1:2, 41:42, 64:65, 80:81, 83:84, 85:86, 100:101, 105:106)
+  ]
+}
+
+if (!incl_ascites) {
+  all_counts <- all_counts[
+    ,grep("-4|-8|-10", colnames(all_counts), invert = T)
+  ]
 }
 
 # fetch sample annot:
@@ -100,25 +111,21 @@ sample_annot <- read.table(
 # keep counts samples only:
 sample_annot <- sample_annot[sample_annot$ID %in% colnames(all_counts),]
 
-# if not comparing primary tumour to FT, remove FT:
-if (div_type != "site") {
-  sample_annot <- sample_annot[
-    !(is.na(
-      eval(parse(text = paste0("sample_annot$", div_type)))
-    )),
-  ]
-}
-
 # only keep annotated samples:
 all_counts <- all_counts[,colnames(all_counts) %in% sample_annot$ID]
 
 # order according to all_counts:
 all_counts <- all_counts[, match(sample_annot$ID, colnames(all_counts))]
 
-
-#############################################################################
-### 1. Use edgeR on raw counts to choose optimum filtering  ###
-#############################################################################
+# replace ensembl gene names with gene symbols:
+# load exon info:
+gencode_info <- read.table(
+  paste0(genome_dir, "gencode.v35.basic.exon.info.txt"),
+  sep = "\t",
+  header = T,
+  stringsAsFactors = F
+)
+gencode_info <- subset(gencode_info, select = -transcript_type)
 
 # load repeat names:
 repeat_symbols <- read.table(
@@ -127,363 +134,396 @@ repeat_symbols <- read.table(
   stringsAsFactors = F
 )[,1]
 
-# create DGEList objects for edgeR:
-prefilter_list <- list(
-  all = DGEList(
-    counts=all_counts, 
-    group = eval(parse(text=paste0("sample_annot$", div_type)))
-  ),
-  gc = DGEList(
-    counts = all_counts[!(rownames(all_counts) %in% repeat_symbols), ], 
-    group = eval(parse(text=paste0("sample_annot$", div_type)))
-  ),
-  repeats = DGEList(
-    counts = all_counts[rownames(all_counts) %in% repeat_symbols, ], 
-    group = eval(parse(text=paste0("sample_annot$", div_type)))
-  )
+# keep only counts of transcripts within gencode info df, or repeats:
+all_counts$transcript_id <- rownames(all_counts)
+GC_counts <- all_counts[
+  all_counts$transcript_id %in% gencode_info$transcript_id,
+]
+
+repeat_counts <- subset(
+  all_counts[
+    all_counts$transcript_id %in% repeat_symbols,
+  ],
+  select = -transcript_id
 )
 
-# check library size:
-prefilter_list$all$samples$lib.size
+# append symbols onto counts:
+GC_counts <- merge(GC_counts, gencode_info, by="transcript_id")
+GC_counts <- subset(GC_counts, select = -transcript_id)
 
-if (!file.exists(paste0(Robject_dir, "prefilter_edgeR.Rdata"))) {
+if (!file.exists(paste0(Robject_dir1, "post_aggregate_GC_counts.Rdata"))) {
 
-  # calculate normalisation factors and check QC plots of different methods:
-  for (i in 1:length(prefilter_list)) {
-
-    print(
-      paste0(
-        "Calculating normalisation factors for and MDS plotting ", 
-        names(prefilter_list)[i]
-      )
-    )
-
-    prefilter_edgeR_y <- edgeR_norm_factors(
-      DGE_object = prefilter_list[[i]], 
-      prefix = paste0("prefilter_", names(prefilter_list)[i]),
-      div_type = div_type,
-      dot_col = col_pal,
-      plot_dir
-    )
-
-    if (i==1) {
-      prefilter_edgeR_list <- list(prefilter_edgeR_y)
-    } else {
-      prefilter_edgeR_list[[i]] <- prefilter_edgeR_y
-    }
-
-  }
-  names(prefilter_edgeR_list) <- names(prefilter_list)
-
-  prefilter_edgeR <- prefilter_edgeR_list$all
-  saveRDS(prefilter_edgeR, paste0(Robject_dir, "prefilter_edgeR.Rdata"))
-
-} else {
-  prefilter_edgeR <- readRDS(paste0(Robject_dir, "prefilter_edgeR.Rdata"))
-}
-
-# fit data to model:
-fit <- glmFit(prefilter_edgeR$GLM, prefilter_edgeR$design)
-
-# perform DE on unfiltered counts, between any groups:
-prefilter_DE <- glmLRT(
-  fit, 
-  contrast=c(-1, 1, rep(0, ncol(prefilter_edgeR$design)-2))
-)
-
-# check DE numbers:
-sig <- decideTestsDGE(
-  prefilter_DE, adjust.method = "BH", p.value = 0.05
-)
-print(summary(sig))
-
-# generate smearplot as sanity check :
-tags <- rownames(prefilter_edgeR$GLM)[as.logical(sig)]
-png(paste0(plot_dir, "prefilter_DE_smearplot.png"))
-  plotSmear(prefilter_DE, de.tags=tags)
-  abline(h = c(-1, 1), col = "blue")
-dev.off()
-
-# fetch all DE and determine best CPM threshold (one with most sig genes)
-prefilter_DE_df <- as.data.frame(topTags(prefilter_DE, n=Inf))
-
-filter_thresh_test(
-  all_counts, 
-  prefilter_DE_df, 
-  threshs = seq(0, 5, 0.1)
-)
-
-# chose CPM filtering value to be 1 as returned most amount of significant 
-# genes after FDR adjustment 
-# (but no filtering returned even more - is this weird?)
-
-
-#############################################################################
-### 2. Filtering and normalisation using edgeR ###
-#############################################################################
-
-if (!file.exists(paste0(Robject_dir, "postfilter_edgeR.Rdata"))) {
-
-  # calculate normalisation factors and check QC plots of different methods:
-  for (i in 1:length(prefilter_list)) {
-
-    print(
-      paste0(
-        "Filtering, calculating normalisation factors for ", 
-        names(prefilter_list)[i]
-      )
-    )
-
-    # filter out genes with less than 2 counts > 1:
-    print(
-      paste0(
-        "No. genes before filtering ", names(prefilter_list)[i], ": ", 
-        nrow(prefilter_list[[i]]$counts)
-      )
-    )
-    
-    keep <- rowSums(cpm(all_counts)>1) >= ncol(all_counts)/3
-    keep <- keep[names(keep) %in% rownames(prefilter_list[[i]]$counts)]
-
-    filtered_y <- prefilter_list[[i]][keep,]
-
-    print(
-      paste0(
-        "No. genes after filtering ", 
-        names(prefilter_list)[i], ": ", nrow(filtered_y$counts)
-      )
-    )
-
-    # adjust library size:
-    filtered_y$samples$lib.size <- colSums(filtered_y$counts)
-    filtered_y$samples
-
-    if (i==1) {
-
-      postfilter_edgeR_y <- edgeR_norm_factors(
-        DGE_object = filtered_y, 
-        prefix = paste0("postfilter_", names(prefilter_list)[i]),
-        div_type = div_type,
-        dot_col = col_pal,
-        plot_dir
-      )
-    
-      postfilter_edgeR <- postfilter_edgeR_y
-
-    } else {
-
-      edgeR_norm_factors(
-        DGE_object = filtered_y, 
-        prefix = paste0("postfilter_", names(prefilter_list)[i]),
-        div_type = div_type,
-        dot_col = col_pal,
-        plot_dir,
-        mds_only = TRUE
-      )
-
-    }
-
-  }
-
-  saveRDS(postfilter_edgeR, paste0(Robject_dir, "postfilter_edgeR.Rdata"))
-
-} else {
-  postfilter_edgeR <- readRDS(paste0(Robject_dir, "postfilter_edgeR.Rdata"))
-}
-
-# fit data to model:
-fit <- glmFit(postfilter_edgeR$GLM, postfilter_edgeR$design)
-
-
-#############################################################################
-### 3. Perform DE between all groups ###
-#############################################################################
-
-all_groups <- as.list(colnames(postfilter_edgeR$design))
-
-# for each group, perform DE between that and all others:
-for (i in 1:length(all_groups)) {
-
-  for (j in 1:length(all_groups)) {
-
-    if (i != j) {
-
-      con <- rep(0, length(all_groups))
-      con[grep(all_groups[i], colnames(postfilter_edgeR$design))] <- -1
-      con[grep(all_groups[j], colnames(postfilter_edgeR$design))] <- 1
-
-      # perform DE on unfiltered counts, between any groups:
-      postfilter_DE <- glmLRT(
-        fit, 
-        contrast=con
-      )
-      
-      # check DE numbers:
-      sig <- decideTestsDGE(
-        postfilter_DE, adjust.method = "BH", p.value = 0.05
-      )
-      print(summary(sig))
-      
-      # generate smearplot as sanity check :
-      tags <- rownames(postfilter_edgeR$GLM)[as.logical(sig)]
-      png(
-        paste0(
-          plot_dir, 
-          all_groups[i], 
-          "_vs_", 
-          all_groups[j], 
-          "_smearplot.png"
-        )
-      )
-        plotSmear(postfilter_DE, de.tags=tags)
-        abline(h = c(-0.7, 0.7), col = "blue")
-      dev.off()
-
-      if (!exists("all_DEs")) {
-
-        all_DEs <- list(as.data.frame(topTags(postfilter_DE, n=Inf)))
-
-      } else {
-
-        all_DEs <- append(
-          all_DEs, list(as.data.frame(topTags(postfilter_DE, n=Inf)))
-        )
-
-      }
-      names(all_DEs)[length(all_DEs)] <- paste0(all_groups[i], "_vs_", all_groups[j])
-
-    }
-
-  }
-
-}
-
-
-#############################################################################
-### 4. Check DE against Nature paper values ###
-#############################################################################
-
-if (div_type == "GIN_driver") {
-
-  # fetch Nature DE results:
-  nat_CCNE_vs_HRD <- read.table(
-    paste0(ref_dir, "nat_CCNE_vs_HRD.txt"),
-    header = T,
-    stringsAsFactors = F
-  )
-  rownames(nat_CCNE_vs_HRD) <- nat_CCNE_vs_HRD$Gene
-  nat_CCNE_vs_HRD <- subset(nat_CCNE_vs_HRD, select=-Gene)
-  colnames(nat_CCNE_vs_HRD) <- c(
-    paste0(
-      "nat_", colnames(nat_CCNE_vs_HRD)
-    )
-  )
-  
-  # add logFC and p-vals from my DE data:
-  both_CCNE_vs_HRD <- merge(nat_CCNE_vs_HRD, all_DEs$CCNE_vs_HRD, by = 0)
-  colnames(both_CCNE_vs_HRD)[5:9] <- paste0(
-    "my_", colnames(both_CCNE_vs_HRD)[5:9]
-  )
-  
-  # report significant genes and save table:
+  # aggregate multiple counts of same symbol:
   print(
     paste0(
-      "No. significant reported CCNE vs HRD genes is ",
-      length(both_CCNE_vs_HRD$my_FDR[both_CCNE_vs_HRD$my_FDR < 0.05]),
-      " out of ",
-      nrow(both_CCNE_vs_HRD)
+      "No transcripts before aggregation of genes with ",
+      "multiple transcripts = ", nrow(GC_counts)
     )
   )
-  write.table(
-    subset(both_CCNE_vs_HRD, select = -c(my_logCPM, my_LR)),
-    paste0(table_dir, "CCNE1_vs_HRD_nature_vs_my_DE.txt"),
-      sep = "\t",
-      quote = F,
-      row.names = F,
-      col.names = T
-  )
+
+  GC_counts <- aggregate(.~symbol, GC_counts, sum)
   
-  # plot nature vs my DE on density scatter:
-  p <- ggplot(both_CCNE_vs_HRD, aes(x=nat_logFC, y=my_logFC))
-  p <- p + geom_pointdensity() 
-  p <- p + scale_color_viridis_c()
-  p <- p + theme_cowplot(12)
-  p <- p + labs(
-    x="Patch et. al. logFC", 
-    y="My DE method logFC",
-    color = "No. neighbours"
+  print(
+    paste0(
+      "No genes after aggregation of genes with ",
+      "multiple transcripts = ", nrow(GC_counts)
+    )
   )
-  p <- p + theme(
-    text = element_text(size = 12)
+
+  GC_counts <- GC_counts %>%
+    column_to_rownames("symbol")
+
+  saveRDS(
+    GC_counts, 
+    paste0(Robject_dir1, "post_aggregate_GC_counts.Rdata")
   )
-  
-  png(
-    paste0(plot_dir, "CCNE1_vs_HRD_nature_vs_my_DE.png"),
-    width = 10,
-    height = 7,
-    unit = "in",
-    res = 300
+
+} else {
+
+  GC_counts <- readRDS(
+    paste0(Robject_dir1, "post_aggregate_GC_counts.Rdata")
   )
-    print(p)
-  dev.off()
 
 }
 
+# append GC and repeat counts:
+formatted_counts <- rbind(GC_counts, repeat_counts)
+
 
 #############################################################################
-### 5. Plot DE non-repeat genes ###
+### 2. Use edgeR on raw counts to choose optimum filtering for 
+# primary tumour vs FT ###
+#############################################################################
+
+Robject_dir2 <- paste0(out_path, "site/Rdata/")
+system(paste0("mkdir -p ", Robject_dir2))
+table_dir2 <- paste0(out_path, "site/tables/")
+system(paste0("mkdir -p ", table_dir2))
+plot_dir2 <- paste0(out_path, "site/plots/")
+system(paste0("mkdir -p ", plot_dir2))
+
+# normalise and fit data to GLM:
+site_fit <- fit_glm(
+  count_df = formatted_counts,
+  sample_annot = sample_annot,
+  repeat_symbols = repeat_symbols,
+  cols = col_pal,
+  div_type = "site",
+  Robject_dir2,
+  plot_dir2,
+  func_dir
+)
+
+Robject_dir3 <- paste0(out_path, "site/primary_vs_FT/Rdata/")
+system(paste0("mkdir -p ", Robject_dir3))
+table_dir3 <- paste0(out_path, "site/primary_vs_FT/tables/")
+system(paste0("mkdir -p ", table_dir3))
+plot_dir3 <- paste0(out_path, "site/primary_vs_FT/plots/")
+system(paste0("mkdir -p ", plot_dir3))
+
+# perform primary vs FT DE:
+primary_vs_FT_DE <- do_DE(
+  fit_obj = site_fit$fit,
+  edgeR_obj = site_fit$all_edgeR,
+  con = c(0, -1, 0, 1),
+  descrip = "primary_vs_FT",
+  plot_dir = plot_dir3
+)
+
+filter_thresh_file <- list.files(
+  plot_dir3, pattern = "CPM_threshold_vs_no_DE_genes"
+)
+
+if (length(filter_thresh_file) < 1) {
+  filter_thresh_test(
+    formatted_counts, 
+    primary_vs_FT_DE, 
+    threshs = seq(0, 5, 0.1),
+    min_no_passed_thresh = 2,
+    plot_dir = plot_dir3
+  )
+}
+
+# chose not to filter by CPM as this gives the most significant results
+
+
+#############################################################################
+### 3. Plot primary tumour vs FT DE ###
 #############################################################################
 
 # load repeat annotation:
 if (!file.exists(paste0(Robject_dir, "all_repeat_genes.Rdata"))) {
 
-    repeat_gtf <- read.table(
+  repeat_gtf <- read.table(
     paste0(genome_dir, "custom3.repeats.hg38.gtf"),
     sep = "\t",
     header = F,
     fill = T
   )
+  saveRDS(repeat_gtf, paste0(Robject_dir1, "all_repeat_genes.Rdata"))
+
   repeat_genes <- gsub("ID ", "", as.character(unique(repeat_gtf$V9)))
-  saveRDS(repeat_gtf, paste0(Robject_dir, "all_repeat_genes.Rdata"))
+
+  repeat_info <- read.table(
+  	paste0(genome_dir, "repeats.hg38.info.txt"),
+  	sep = "\t",
+  	header = T
+  )
+  saveRDS(repeat_info, paste0(Robject_dir1, "repeat_info.Rdata"))
 
 } else {
 
-  repeat_gtf <- readRDS(paste0(Robject_dir, "all_repeat_genes.Rdata"))
+  repeat_gtf <- readRDS(paste0(Robject_dir3, "all_repeat_genes.Rdata"))
+  repeat_genes <- gsub("ID ", "", as.character(unique(repeat_gtf$V9)))
+  repeat_info <- readRDS(paste0(Robject_dir1, "repeat_info.Rdata"))
   
 }
 
-for (d in 1:length(all_DEs)) {
+# plot non-repeat DEs:
+plot_DE(
+  DE_results = primary_vs_FT_DE,
+  DE_name = "primary_vs_FT",
+  repeat_genes = repeat_genes,
+  gene_type = "non_repeat",
+  table_dir = table_dir3,
+  plot_dir = plot_dir3,
+  FDR_lim = 0.05,
+  FC_lim = 0.7,
+  num_label = 20,
+  manual_lab = "none",
+  dot_col = "#E6AB02",
+  label_col = "#430F82",
+  up_ctl = c(
+  	"CDKN2A", "PTEN", "RAD51C", "PARP1", "E2F1",
+  	"SBK1", "IGF1"
+  ),
+  up_ctl_col = "#E7298A"
+)
 
-  # plot non-repeat DEs:
-  plot_DE(
-    DE_results = all_DEs[[d]],
-    DE_name = names(all_DEs)[d],
-    repeat_genes = repeat_genes,
-    gene_type = "non_repeat",
-    table_dir,
-    plot_dir,
-    FDR_lim = 0.05,
-    FC_lim = 0.7,
-    num_label = 20,
-    dot_col = "#8BCCB5",
-    label_col = "#430F82"
-  ) 
+# plot non-repeat DEs with ctls only labelled:
+plot_DE(
+  DE_results = primary_vs_FT_DE,
+  DE_name = "primary_vs_FT_ctl_only_labelled",
+  repeat_genes = repeat_genes,
+  gene_type = "non_repeat",
+  table_dir = table_dir3,
+  plot_dir = plot_dir3,
+  FDR_lim = 0.05,
+  FC_lim = 0.7,
+  num_label = 0,
+  manual_lab = "none",
+  dot_col = "#F2EF81",
+  label_col = "#430F82",
+  up_ctl = c(
+  	"CDKN2A", "PTEN", "RAD51C", "PARP1", "E2F1",
+  	"SBK1", "IGF1"
+  ),
+  up_ctl_col = "#E7298A"
+)
 
-  # plot repeat DEs:
-  plot_DE(
-    all_DEs[[d]],
-    names(all_DEs)[d],
-    repeat_genes,
-    "repeat",
-    table_dir,
-    plot_dir,
-    FDR_lim = 0.05,
-    FC_lim = 0.7,
-    num_label = 20,
-    dot_col = "#8BCCB5",
-    label_col = "#430F82"
-  ) 
+# plot repeat DEs:
+plot_DE(
+  DE_results = primary_vs_FT_DE,
+  DE_name = "primary_vs_FT",
+  repeat_genes = repeat_genes,
+  gene_type = "repeat",
+  table_dir3,
+  plot_dir3,
+  FDR_lim = 0.05,
+  FC_lim = 0.7,
+  num_label = 20,
+  manual_lab = "none",
+  dot_col = "#F2EF81",
+  label_col = "#430F82"
+) 
 
-}
+# plot retrotransposons:
+RT <- repeat_info$symbol[grep("LINE|SINE|LTR|SVA", repeat_info$type)]
+
+plot_DE(
+  DE_results = primary_vs_FT_DE,
+  DE_name = "primary_vs_FT",
+  repeat_genes = RT,
+  gene_type = "retrotransposon",
+  table_dir3,
+  plot_dir3,
+  FDR_lim = 0.05,
+  FC_lim = 0.7,
+  num_label = 10,
+  manual_lab = "none",
+  dot_col = "#F2EF81",
+  label_col = "#BC8E1B",
+  up_ctl = c(
+  	"L1HS", "L1PA2", "AluYk2", "AluYd8", 
+  	"AluYh3", "AluYb8"
+  ),
+  up_ctl_col = "#E7298A"
+)
 
 
+#############################################################################
+### 4. Plot primary tumour vs FT FPKM of top 20 up and downreg 
+# retrotransposons ###
+#############################################################################
+
+# calculate CPM:
+all_counts <- subset(all_counts, select = -transcript_id)
+reads_per_sample <- apply(all_counts, 2, sum)
+
+repeat_CPM <- round(t(t(repeat_counts)/reads_per_sample)*1e6, 2)
+
+# isolate top sig DE retrotransposons:
+RT_DE <- primary_vs_FT_DE[RT,]
+
+
+
+#############################################################################
+### 5. Compare CCNE1 vs HRD DE to Nature paper results ###
+#############################################################################
+
+Robject_dir4 <- paste0(out_path, "GIN_driver/Rdata/")
+system(paste0("mkdir -p ", Robject_dir4))
+table_dir4 <- paste0(out_path, "GIN_driver/tables/")
+system(paste0("mkdir -p ", table_dir4))
+plot_dir4 <- paste0(out_path, "GIN_driver/plots/")
+system(paste0("mkdir -p ", plot_dir4))
+
+# normalise and fit data to GLM:
+GIN_fit <- fit_glm(
+  count_df = formatted_counts,
+  sample_annot = sample_annot,
+  repeat_symbols = repeat_symbols,
+  cols = col_pal,
+  div_type = "GIN_driver",
+  Robject_dir4,
+  plot_dir4,
+  func_dir
+)
+
+Robject_dir5 <- paste0(out_path, "GIN_driver/CCNE_vs_HRD/Rdata/")
+system(paste0("mkdir -p ", Robject_dir5))
+table_dir5 <- paste0(out_path, "GIN_driver/CCNE_vs_HRD/tables/")
+system(paste0("mkdir -p ", table_dir5))
+plot_dir5 <- paste0(out_path, "GIN_driver/CCNE_vs_HRD/plots/")
+system(paste0("mkdir -p ", plot_dir5))
+
+# perform primary vs FT DE:
+CCNE_vs_HRD_DE <- do_DE(
+  fit_obj = GIN_fit$fit,
+  edgeR_obj = GIN_fit$all_edgeR,
+  con = c(1, 0, -1, 0, 0, 0),
+  descrip = "CCNE_vs_HRD",
+  plot_dir = plot_dir5
+)
+
+CCNE_vs_HRD_nat_vs_me <- DE_compare(
+  DE_res = CCNE_vs_HRD_DE,
+  descrip = "CCNE_vs_HRD",
+  ref_dir,
+  table_dir5,
+  plot_dir5
+)
+
+
+#############################################################################
+### 5. Compare CCNE1 vs HRD DE to Nature paper results ###
+#############################################################################
+
+Robject_dir6 <- paste0(out_path, "GIN_driver/HRD_vs_unknown/Rdata/")
+system(paste0("mkdir -p ", Robject_dir6))
+table_dir6 <- paste0(out_path, "GIN_driver/HRD_vs_unknown/tables/")
+system(paste0("mkdir -p ", table_dir6))
+plot_dir6 <- paste0(out_path, "GIN_driver/HRD_vs_unknown/plots/")
+system(paste0("mkdir -p ", plot_dir6))
+
+HRD_vs_unknown_DE <- do_DE(
+  fit_obj = GIN_fit$fit,
+  edgeR_obj = GIN_fit$all_edgeR,
+  con = c(0, 0, 1, 0, -1, 0),
+  descrip = "HRD_vs_unknown",
+  plot_dir = plot_dir6
+)
+
+HRD_vs_unknown_nat_vs_me <- DE_compare(
+  DE_res = HRD_vs_unknown_DE,
+  descrip = "HRD_vs_unknown",
+  ref_dir,
+  table_dir6,
+  plot_dir6
+)
+
+
+## find genes with most discrepency:
+#both_CCNE_vs_HRD$diff <- both_CCNE_vs_HRD$nat_logFC - 
+#  both_CCNE_vs_HRD$my_logFC
+#disc_df <- both_CCNE_vs_HRD[order(both_CCNE_vs_HRD$diff, decreasing=F),]
+#
+#top_diff <- head(disc_df$Row.names, 10)
+#
+## fetch counts for these genes:
+#diff_counts <- formatted_counts[top_diff,]
+#
+## split by driver:
+#diff_CCNE <- diff_counts[
+#  ,colnames(diff_counts) %in% 
+#    sample_annot$ID[sample_annot$GIN_driver == "CCNE"]
+#]
+#
+#diff_HRD <- diff_counts[
+#  ,colnames(diff_counts) %in% 
+#    sample_annot$ID[sample_annot$GIN_driver == "HRD"]
+#]
+
+
+#############################################################################
+### 6. Plot relapse tumour vs FT DE ###
+#############################################################################
+
+Robject_dir7 <- paste0(out_path, "site/primary_vs_ascites/Rdata/")
+system(paste0("mkdir -p ", Robject_dir7))
+table_dir7 <- paste0(out_path, "site/primary_vs_ascites/tables/")
+system(paste0("mkdir -p ", table_dir7))
+plot_dir7 <- paste0(out_path, "site/primary_vs_ascites/plots/")
+system(paste0("mkdir -p ", plot_dir7))
+
+primary_vs_ascites_DE <- do_DE(
+  fit_obj = site_fit$fit,
+  edgeR_obj = site_fit$all_edgeR,
+  con = c(1, 0, 0, -1),
+  descrip = "primary_vs_ascites",
+  plot_dir = plot_dir7
+)
+
+# plot repeat DEs:
+plot_DE(
+  DE_results = primary_vs_ascites_DE,
+  DE_name = "primary_vs_ascites",
+  repeat_genes = repeat_genes,
+  gene_type = "repeat",
+  table_dir3,
+  plot_dir3,
+  FDR_lim = 0.05,
+  FC_lim = 0.7,
+  num_label = 10,
+  manual_lab = "none",
+  dot_col = "#F2EF81",
+  label_col = "#430F82"
+) 
+
+# plot retrotransposons:
+plot_DE(
+  DE_results = primary_vs_ascites_DE,
+  DE_name = "primary_vs_ascites",
+  repeat_genes = RT,
+  gene_type = "retrotransposon",
+  table_dir3,
+  plot_dir3,
+  FDR_lim = 0.05,
+  FC_lim = 0.7,
+  num_label = 10,
+  manual_lab = "none",
+  dot_col = "#F2EF81",
+  label_col = "#BC8E1B",
+  up_ctl = "none",
+  up_ctl_col = "#E7298A"
+) 

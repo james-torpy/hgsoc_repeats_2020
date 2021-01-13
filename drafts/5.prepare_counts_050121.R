@@ -206,3 +206,106 @@ saveRDS(
   paste0(Robject_dir, "all_combined_mapped_read_no.Rdata")
 )
 
+######
+
+## keep only lncRNAs, miRNAs and protein coding transcripts:
+#transcript_annot <- read.table(
+#  paste0(genome_dir, "gencode.v35.basic.exon.info.txt"),
+#  fill = T,
+#  sep = "\t",
+#  header = T
+#)
+#
+#keep_annot <- transcript_annot[
+#  transcript_annot$transcript_type == "protein_coding" | 
+#  transcript_annot$transcript_type == "lncRNA" | 
+#  transcript_annot$transcript_type == "miRNA",
+#]
+#
+#print(
+#  paste0(
+#    "No transcripts before filtering for protein coding, lncRNA, miRNA: ",
+#    nrow(count_df)
+#  )
+#)
+#count_df <- count_df[rownames(count_df) %in% keep_annot$transcript_id,]
+#print(
+#  paste0(
+#    "No transcripts after filtering: ",
+#    nrow(count_df)
+#  )
+#)
+#
+### load ensembl and entrez to symbol dfs:
+##ensembl_ids <- toTable(org.Hs.egENSEMBL)
+##symbol_ids <- toTable(org.Hs.egSYMBOL)
+#
+## load exon annotation:
+#exon_annot <- read.table(
+#  paste0(genome_dir, "gencode.v35.basic.exons.pc.lncRNA.txt"),
+#  fill = T,
+#  sep = "\t",
+#  header = T
+#)
+#exon_annot$exon_id <- gsub("\\:.*$", "", exon_annot$exon_id)
+#exon_annot$exon_id <- gsub("\\..*$", "", exon_annot$exon_id)
+#exon_annot <- exon_annot[!duplicated(exon_annot$exon_id),]
+#
+## replace ensembl ids with symbols:
+## split repeats and GC apart:
+#count_df$split <- "repeat"
+#count_df$split[grep("ENST", rownames(count_df))] <- "GC"
+#split_df <- split(count_df, count_df$split)
+#
+## replace ensembl ids with symbols:
+#split_df[[1]]$id <- rownames(split_df[[1]])
+#split_df[[1]] <- split_df[[1]][
+#  split_df[[1]]$id %in% exon_annot$exon_id,
+#]
+#
+#m <- match(split_df[[1]]$id, exon_annot$exon_id)
+#split_df[[1]]$id <- exon_annot$symbol[m]
+#
+## remove duplicates and make rownames id column:
+#split_df[[1]] <- split_df[[1]][!duplicated(split_df[[1]]$id),]
+#rownames(split_df[[1]]) <- split_df[[1]]$id
+#split_df[[1]] <- subset(split_df[[1]], select = -id)
+#
+## rebind GC with repeats, remove id column and gene type from rownames:
+#symbol_df <- do.call("rbind", split_df)
+#symbol_df <- subset(symbol_df, select = -split)
+#
+#rownames(symbol_df)[rownames(symbol_df)=="repeat.MSR1"] <- "MSR1_repeat"
+#rownames(symbol_df) <- gsub(
+#  "repeat\\.", 
+#  "", 
+#  gsub("GC\\.", "", rownames(symbol_df))
+#)
+#
+## write both as table:
+#if (sub) {
+#  out_file_ensembl <- paste0(in_dir, "sub_combined_counts_ensembl_ids.txt")
+#  out_file_symbol <- paste0(in_dir, "sub_combined_counts_symbols.txt")
+#} else {
+#  out_file_ensembl <- paste0(in_dir, "combined_counts_ensembl_ids.txt")
+#  out_file_symbol <- paste0(in_dir, "combined_counts_symbols.txt")
+#}
+#
+#write.table(
+#  count_df,
+#  out_file_ensembl,
+#  sep = "\t",
+#  quote = F,
+#  row.names = T,
+#  col.names = T
+#)
+#
+#write.table(
+#  symbol_df,
+#  out_file_symbol,
+#  sep = "\t",
+#  quote = F,
+#  row.names = T,
+#  col.names = T
+#)
+

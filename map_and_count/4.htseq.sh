@@ -4,15 +4,15 @@ source /home/jamtor/.bashrc
 
 conda activate py2.7
 
-module load gi/boost/1.53.0
-module load gi/zlib/1.2.8
-module load aledre/samtools/prebuilt/1.10
+#module load gi/boost/1.53.0
+#module load gi/zlib/1.2.8
+#module load aledre/samtools/prebuilt/1.10
 
 sample_name=$1
 cores=$2
 type=$3
 
-#sample_name="AOCS-172-31-sub"
+#sample_name="AOCS-005-2"
 #cores=2
 #type="GC"
 

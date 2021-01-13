@@ -1,14 +1,11 @@
 #!/bin/bash
 
-module load gi/zlib/1.2.8
-module load phuluu/samtools/1.4
-
 # fetch input variables:
 sample_name=$1
 cores=$2
 type=$3
 
-#sample_name="AOCS-172-31-sub"
+#sample_name="AOCS-005-2"
 #cores=10
 #type="GC"
 

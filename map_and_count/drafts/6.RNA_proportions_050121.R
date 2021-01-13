@@ -47,9 +47,7 @@ all_counts <- readRDS(
 
 if (!include_ascites) {
   # remove ascites:
-  all_counts <- all_counts[
-    ,grep("-4|-8|-10", colnames(all_counts), invert = T)
-  ]
+  all_counts <- all_counts[,grep("-4", colnames(all_counts), invert = T)]
 } 
 
 transcript_annot <- read.table(
@@ -197,22 +195,19 @@ if (cor_p < 0.001) {
   p_lab <- paste0("= ", as.character(round(cor_p, 8)))
 }
 
-x_annot_pos <- max(counts_vs_mapped$gencode_mapped) - 
-  (max(counts_vs_mapped$gencode_mapped)/30)
-
 p <- ggplot(counts_vs_mapped, aes(x=gencode_mapped, y=total_count))
 p <- p + geom_point()
 p <- p + theme_cowplot(12)
 p <- p + labs(x = "Mapped reads", y="Counted reads")
 p <- p + annotate(
   geom="text", 
-  x=x_annot_pos, 
+  x=1.75e+08, 
   y=5.6e+07, 
   label=paste0("R2 = ", round(cor_val, 2))
 )
 p <- p + annotate(
   geom="text", 
-  x=x_annot_pos, 
+  x=1.75e+08, 
   y=5.43e+07, 
   label=paste0("p ", p_lab)
 )
@@ -254,148 +249,152 @@ plot_dfs <- list(
   proportion = as.data.frame(RNA_prop_df)
 )
 
-# set up sample annotation dimensions:
-sample_rle <- rle(sample_annot$site)
-sample_dims <- data.frame(
-  type = sample_rle$values,
-  start = cumsum(
-  	c(0, sample_rle$lengths[1:length(sample_rle$lengths)-1])
-  ),
-  length = sample_rle$lengths
-)
-sample_dims$start <- sample_dims$start/nrow(sample_annot)
-sample_dims$length_prop <-  sample_dims$length/sum(sample_dims$length)
-sample_dims$midpoint <- sample_dims$start + sample_dims$length_prop/2
-
-# melt plots:
-plot_dfs <- lapply(plot_dfs, function(x) {
-  x$ID <- rownames(x)
-  x <- melt(x)
-})
-
-# make function to create plots:
-create_quantity_plots <- function(
-  plot_df,
-  type,
-  col_pal,
-  incl_labels = "samples_unlabelled"
-) {
-
-  # create plot:
-  p <- ggplot(plot_df, aes(x=ID, y=value))
-  p <- p + geom_bar(stat = "identity", aes(fill = variable))
-  p <- p + theme_cowplot(12)
-  p <- p + scale_fill_manual(
-    labels = gsub("_", "-", names(col_pal)), 
-    values = col_pal
-  )
-  p <- p + scale_y_continuous(expand = c(0,0.1))
-  if (type == "proportion") {
-    p <- p + labs(x = "Samples", y = "Proportion of total", fill = "RNA type")
-  } else {
-    p <- p + labs(x = "Samples", y = "Quantity", fill = "RNA type")
-  }
-
-  if (incl_labels == "samples_unlabelled") {  
-    p <- p + theme(
-      text = element_text(size=20),
-      axis.title.x = element_blank(),
-      axis.text.x = element_blank(),
-      axis.ticks.x = element_blank(),
-      axis.text.y = element_text(size=18)
-    )
-  } else {
-    p <- p + theme(
-      text = element_text(size=20),
-      axis.title.x = element_blank(),
-      axis.text.x = element_text(size = 6, angle = 90),
-      axis.ticks.x = element_blank(),
-      axis.text.y = element_text(size=18)
-    )
-  }
-
-  grob_p <- ggplotGrob(p)
-
-  draw_plot <- function(plot_obj, type) {
-    grid.newpage()
-  
-      # plot one viewport per plot:
-      pushViewport(viewport(x = 0.53, y = 0.53, width = 0.95, height = 0.85))
-        grid.draw(grob_p)
-      popViewport()
-
-      # plot sample annotation:
-      pushViewport(viewport(x = 0.488, y = 0.057, width = 0.7515, height = 0.1))
-        
-        #grid.rect()
-
-        for (j in 1:nrow(sample_dims)) {
-
-          if (j==1) {
-            annot_col <- "#1B9E77"
-            stype <- "Tumour"
-          } else {
-            annot_col <- "#7C5220"
-            stype <- "Control"
-          }
-
-          # plot bar:
-          pushViewport(viewport(
-            x = sample_dims$start[j], 
-            y = 0.7, 
-            width = sample_dims$length_prop[j], 
-            height = 0.3, 
-            just = "left"
-          ))
-            grid.rect(gp=gpar(col=annot_col, fill=annot_col))
-          popViewport()
-
-          # plot labels:
-          pushViewport(viewport(
-            x = sample_dims$midpoint[j], 
-            y = 0.3, 
-            width = 0.2, 
-            height = 0.3
-          ))
-            grid.text(stype, gp=gpar(fontsize=16))
-          popViewport()
-
-        }
-
-      popViewport()
-
-  }
-
-  pdf(
-    paste0(plot_dir, "RNA_", type, "_barplot_", incl_labels, ".pdf"),
-    width = 15
-  )
-    draw_plot(grob_p, type)
-  dev.off()
-
-  png(
-    paste0(plot_dir, "RNA_", type, "_barplot_", incl_labels, ".png"),
-    height = 7,
-    width = 15,
-    res = 300,
-    units = "in"
-  )
-    draw_plot(grob_p, type)
-  dev.off()
-
-}
+## set up sample annotation dimensions:
+#sample_rle <- rle(sample_annot$site)
+#sample_dims <- data.frame(
+#  type = sample_rle$values,
+#  start = cumsum(
+#  	c(0, sample_rle$lengths[1:length(sample_rle$lengths)-1])
+#  ),
+#  length = sample_rle$lengths
+#)
+#sample_dims$start <- sample_dims$start/nrow(sample_annot)
 
 # melt and create plots:
 for (i in 1:length(plot_dfs)) {
-
-  for (lab in c("samples_unlabelled", "samples_labelled"))
  
-  create_quantity_plots(
-    plot_df = plot_dfs[[i]],
-    type = names(plot_dfs)[i],
-    col_pal = col_pal,
-    incl_labels = lab
+  plot_dfs[[i]]$ID <- rownames(plot_dfs[[i]])
+  plot_dfs[[i]] <- melt(plot_dfs[[i]])
+  
+  # create plot:
+  p <- ggplot(plot_dfs[[i]], aes(x=ID, y=value))
+  p <- p + geom_bar(stat = "identity", aes(fill = variable))
+  p <- p + scale_fill_manual(
+  	labels = gsub("_", "-", names(col_pal)), 
+  	values = col_pal
+  )
+  if (i==2) {
+  	p <- p + scale_y_continuous(expand = c(0,0.1))
+  }
+  p <- p + labs(x = "Samples", y = "Proportion of total", fill = "RNA type")
+  p <- p + theme(
+  	text = element_text(size=20),
+  	axis.title.x = element_blank(),
+  	#axis.text.x = element_text(angle = 90),
+  	axis.text.x = element_blank(),
+  	axis.ticks.x = element_blank(),
+  	axis.text.y = element_text(size=18)
   )
 
+  grob_p <- ggplotGrob(p)
+
+  pdf(
+  	paste0(plot_dir, "RNA_", names(plot_dfs)[i], "_barplot.pdf"),
+  	width = 15
+  )
+
+    grid.newpage()
+  
+      # plot one viewport per plot:
+      pushViewport(viewport(x = 0.53, y = 0.5, width = 0.95, height = 0.85))
+        grid.draw(grob_p)
+      popViewport()
+
+#      pushViewport(viewport(x = 0.478, y = 0.12, width = 0.706, height = 0.025))
+#        
+#        grid.rect()
+#
+#        for (j in 1:nrow(sample_dims)) {
+#
+#          pushViewport(viewport(
+#            x = sample_dims$start[j], 
+#            y = 0.5, 
+#            width = 0.0101*sample_dims$length[j], 
+#            height = 1, 
+#            just = "left"
+#          ))
+#            grid.rect()
+#          popViewport()
+#
+#        }
+#
+#      popViewport()
+
+  dev.off()
+
 }
+
+
+
+
+
+
+
+
+
+#######
+#plot_df <- plot_dfs[[2]][30:32,]
+#plot_df$ID <- rownames(plot_df)
+#plot_df <- melt(plot_df)
+#p <- ggplot(plot_df, aes(x=ID, y=value))
+#p <- p + geom_bar(stat="identity", aes(fill=variable))
+#p <- p + scale_fill_manual(values = col_pal)
+##p <- p + scale_y_continuous(, limits = c(0,100))
+#p <- p + scale_y_continuous(expand = c(0,0))
+#p <- p + theme(
+#  text = element_text(size=20), 
+#  axis.ticks.x = element_blank(),
+#  axis.text.x = element_blank()
+#)
+#p
+#######
+
+
+### 5. Create composition barplots ###
+
+# convert Counts to a dataframe:
+countsDF <- as.data.frame(t(do.call("cbind", Counts)))
+# add rownames as column and melt dataframe:
+countsDF$gene_type <- rownames(countsDF)
+
+# calculate percentages as new data frame:
+perCountsDF <- as.data.frame(apply(countsDF[,1:ncol(countsDF)-1], 2, function(x) {
+  return(as.integer(x)/as.integer(sum(x))*100)
+}))
+perCountsDF$gene_type <- countsDF$gene_type
+ 
+
+# create composition barplots of CountsDF and perCountsDF:
+cDFs <- list(countsDF, perCountsDF)
+Plots <- list()
+for (i in 1:2) {
+  pCounts <- melt(cDFs[i], variable.name = "sample")
+  pCounts$gene_type <- factor(pCounts$gene_type, levels = c("non-coding", "ribosomal", "other", "repeat", "protein-coding"))
+  
+  # plot data as barplot:
+  p <- ggplot(pCounts, aes(x=sample, y=value))
+  p <- p + geom_bar(stat="identity", aes(fill=gene_type))
+  p <- p + scale_fill_manual(values = c("#00BF7D", "#AA4499", "#00B0F6", "#DDCC77", "#F8766D"))
+  Plots[[i]] <- p + theme(text = element_text(size=20), axis.text.x = element_text(angle = 90))
+  i=i+1
+}
+
+
+
+pdf(file = paste0(plotDir, "compBarplotCounts.pdf"), height=20, width=35)
+Plots[[1]]
+dev.off()
+
+pdf(file = paste0(plotDir, "compBarplotPercent.pdf"), height=20, width=35)
+Plots[[2]]
+dev.off()
+  
+  
+save.image(file=paste0(RobjectDir, "/QCimage.RData"))
+
+
+
+
+
+
 

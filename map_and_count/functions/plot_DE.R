@@ -7,9 +7,13 @@ plot_DE <- function(
   plot_dir,
   FDR_lim = 0.05,
   FC_lim = 0.7,
-  num_label = 20,
+  num_label = 10,
+  manual_lab = "none",
   dot_col,
-  label_col
+  label_col,
+  up_ctl = "none",
+  up_ctl_col = "none"
+
 ) {
 
   print(paste0("Plotting ", gene_type, " DE for ", DE_name))
@@ -19,7 +23,7 @@ plot_DE <- function(
     DE <- DE_results[
       !(rownames(DE_results) %in% repeat_genes),
     ]
-  } else  if (gene_type == "repeat") {
+  } else {
     DE <- DE_results[
       rownames(DE_results) %in% repeat_genes,
     ]
@@ -32,7 +36,14 @@ plot_DE <- function(
     FC_lim = FC_lim,
     num_label = num_label
   )
-  
+
+  if (up_ctl[1] != "none") {
+    # label upregulated controls:
+    DE_labelled$up_ctl <- FALSE
+    DE_labelled$up_ctl[rownames(DE_labelled) %in% up_ctl] <- TRUE
+    DE_labelled$sig[rownames(DE_labelled) %in% up_ctl] <- "up_ctl"
+  }
+
   # save up and down genes as table:
   DE_up <- DE_labelled[DE_labelled$logFC > 0,]
   DE_up <- DE_up[order(DE_up$logFC),]
@@ -56,15 +67,27 @@ plot_DE <- function(
     row.names = T,
     quote = F
   )
-  
+
+  # make sig column a factor and adjust levels:
+  DE_labelled$sig <- factor(
+    DE_labelled$sig, levels = c("up_ctl", "non_sig", "sig")
+  )
+
   # generate volcano plot:
   DE_plot <- gen_plot(
     plot_df = DE_labelled,
     dot_col,
-    label_col
+    label_col,
+    up_ctl_col,
+    x_limits1 = "none",
+    x_limits2 = c(-5, 6)
   )
   
   png(paste0(plot_dir, DE_name, "_", gene_type, "_DE_volcano.png"))
+    print(DE_plot)
+  dev.off()
+
+  pdf(paste0(plot_dir, DE_name, "_", gene_type, "_DE_volcano.pdf"))
     print(DE_plot)
   dev.off()
 

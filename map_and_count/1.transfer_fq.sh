@@ -10,7 +10,7 @@ temp_dir="$gadi_dir/mdss/hgsoc_repeats/RNA-seq/raw_files/fastqs"
 
 sample_name=$1
 
-#sample_name="AOCS-172-31-sub"
+#sample_name="AOCS-005-2"
 
 mkdir -p $out_dir
 cd $out_dir

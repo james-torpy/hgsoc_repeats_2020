@@ -1,11 +1,9 @@
 
-module load aledre/samtools/prebuilt/1.10
-
 sample_name=$1
 type=$2
 species=$3
 
-#sample_name="AOCS-172-31-sub"
+#sample_name="AOCS-005-2"
 #type="smap"
 #species="GC"
 echo "Sample name: $sample_name"
@@ -27,13 +25,13 @@ if [ $type = "smap" ]; then
   # sort by name:
   echo "Sorting by name..."
   samtools view -h $bam_file | \
-    samtools sort -n -@ 9 -T "$bam_dir/$sample_name" -O sam | \
+    samtools sort -n -@ 9 -T "$bam_dir/$sample_name.smap" -O sam | \
     samtools view -b > "$bam_dir/sorted.by.name.bam"    
 else
   # sort by name and change all NH:i:>1 to 1:
   echo "Sorting by name and adjusting NH flags......"
   samtools view -h $bam_file | \
-    samtools sort -n -@ 9 -T "$bam_dir/$sample_name" -O sam | \
+    samtools sort -n -@ 9 -T "$bam_dir/$sample_name.mmap" -O sam | \
     sed "s/NH:i:[0-9]*/NH:i:1/g" | \
     samtools view -b > "$bam_dir/sorted.by.name.mmappers.bam"
 fi

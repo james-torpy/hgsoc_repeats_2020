@@ -8,12 +8,70 @@ edgeR_norm_factors <- function(
   mds_only = FALSE
 ) {
 
+  library(ggplot2)
+  library(cowplot)
+  library(RUVSeq)
+
+  plot_rle <- dget(paste0(func_dir, "plot_rle.R"))
+
+  # create and check RLE plot pre-normalisation:
+  print("Generating pre-norm RLE...")
+
+  plot_rle(
+    count_obj = DGE_object$counts,
+    descrip = "pre_norm",
+    plot_dir
+  )
+
   # normalise counts and check:
   print("Normalising counts...")
 
-  norm_y <- calcNormFactors(DGE_object)
-  norm_y$samples
-  
+### EdgeR ###
+
+#  norm_y <- calcNormFactors(DGE_object)
+#  norm_y$samples
+
+  # multiply samples by norm factors:
+  #norm_counts <- sweep(norm_y$counts, 2, norm_y$samples$norm.factors, "*")
+
+#  print("Generating post-norm RLE...")
+
+#  # plot RLE:
+#  plot_rle(
+#    count_obj = norm_counts,
+#    descrip = "post_norm",
+#    plot_dir
+#  )
+
+###
+
+### RUV_Seq ###
+
+  set <- newSeqExpressionSet(
+    DGE_object$counts, 
+    phenoData = data.frame(
+      sample_annot$GIN_driver, 
+      row.names=colnames(DGE_object$counts)
+    )
+  )
+
+  nSet <- betweenLaneNormalization(set, which="full")
+
+  print("Generating post-norm RLE...")
+
+  # plot RLE:
+  plot_rle(
+    count_obj = normCounts(nSet),
+    descrip = "post_norm",
+    plot_dir
+  )
+
+  # add normalised counts to DGE_object
+  norm_y <- DGE_object
+  norm_y$counts <- normCounts(nSet)
+
+###
+
   if (!file.exists(paste0(plot_dir, prefix, "_mds.png"))) {
 
     # prepare MDS data:
@@ -69,6 +127,7 @@ edgeR_norm_factors <- function(
     dev.off()
 
   }
+
 
   if (!mds_only) {
   
