@@ -214,6 +214,8 @@ site_fit <- fit_glm(
   func_dir
 )
 
+
+
 Robject_dir3 <- paste0(out_path, "site/primary_vs_FT/Rdata/")
 system(paste0("mkdir -p ", Robject_dir3))
 table_dir3 <- paste0(out_path, "site/primary_vs_FT/tables/")
@@ -279,6 +281,8 @@ if (!file.exists(paste0(Robject_dir, "all_repeat_genes.Rdata"))) {
   
 }
 
+RT <- repeat_info$symbol[grep("LINE|SINE|LTR|SVA", repeat_info$type)]
+
 # plot non-repeat DEs:
 plot_DE(
   DE_results = primary_vs_FT_DE,
@@ -338,7 +342,6 @@ plot_DE(
 ) 
 
 # plot retrotransposons:
-RT <- repeat_info$symbol[grep("LINE|SINE|LTR|SVA", repeat_info$type)]
 
 plot_DE(
   DE_results = primary_vs_FT_DE,
@@ -361,19 +364,19 @@ plot_DE(
 )
 
 
-#############################################################################
-### 4. Plot primary tumour vs FT FPKM of top 20 up and downreg 
-# retrotransposons ###
-#############################################################################
-
-# calculate CPM:
-all_counts <- subset(all_counts, select = -transcript_id)
-reads_per_sample <- apply(all_counts, 2, sum)
-
-repeat_CPM <- round(t(t(repeat_counts)/reads_per_sample)*1e6, 2)
-
-# isolate top sig DE retrotransposons:
-RT_DE <- primary_vs_FT_DE[RT,]
+##############################################################################
+#### 4. Plot primary tumour vs FT FPKM of top 20 up and downreg 
+## retrotransposons ###
+##############################################################################
+#
+## calculate CPM:
+#all_counts <- subset(all_counts, select = -transcript_id)
+#reads_per_sample <- apply(all_counts, 2, sum)
+#
+#repeat_CPM <- round(t(t(repeat_counts)/reads_per_sample)*1e6, 2)
+#
+## isolate top sig DE retrotransposons:
+#RT_DE <- primary_vs_FT_DE[RT,]
 
 
 
@@ -479,29 +482,29 @@ HRD_vs_unknown_nat_vs_me <- DE_compare(
 ### 6. Plot relapse tumour vs FT DE ###
 #############################################################################
 
-Robject_dir7 <- paste0(out_path, "site/primary_vs_ascites/Rdata/")
+Robject_dir7 <- paste0(out_path, "site/recurrent_vs_primary/Rdata/")
 system(paste0("mkdir -p ", Robject_dir7))
-table_dir7 <- paste0(out_path, "site/primary_vs_ascites/tables/")
+table_dir7 <- paste0(out_path, "site/recurrent_vs_primary/tables/")
 system(paste0("mkdir -p ", table_dir7))
-plot_dir7 <- paste0(out_path, "site/primary_vs_ascites/plots/")
+plot_dir7 <- paste0(out_path, "site/recurrent_vs_primary/plots/")
 system(paste0("mkdir -p ", plot_dir7))
 
-primary_vs_ascites_DE <- do_DE(
+recurrent_vs_primary_DE <- do_DE(
   fit_obj = site_fit$fit,
   edgeR_obj = site_fit$all_edgeR,
-  con = c(1, 0, 0, -1),
-  descrip = "primary_vs_ascites",
+  con = c(0, 0, 1, -1),
+  descrip = "recurrent_vs_primary",
   plot_dir = plot_dir7
 )
 
 # plot repeat DEs:
 plot_DE(
-  DE_results = primary_vs_ascites_DE,
-  DE_name = "primary_vs_ascites",
+  DE_results = recurrent_vs_primary_DE,
+  DE_name = "recurrent_vs_primary",
   repeat_genes = repeat_genes,
   gene_type = "repeat",
-  table_dir3,
-  plot_dir3,
+  table_dir7,
+  plot_dir7,
   FDR_lim = 0.05,
   FC_lim = 0.7,
   num_label = 10,
@@ -510,14 +513,48 @@ plot_DE(
   label_col = "#430F82"
 ) 
 
+if (!exists("RT")) {
+
+  # load repeat annotation:
+  if (!file.exists(paste0(Robject_dir1, "all_repeat_genes.Rdata"))) {
+  
+    repeat_gtf <- read.table(
+      paste0(genome_dir, "custom3.repeats.hg38.gtf"),
+      sep = "\t",
+      header = F,
+      fill = T
+    )
+    saveRDS(repeat_gtf, paste0(Robject_dir1, "all_repeat_genes.Rdata"))
+  
+    repeat_genes <- gsub("ID ", "", as.character(unique(repeat_gtf$V9)))
+  
+    repeat_info <- read.table(
+      paste0(genome_dir, "repeats.hg38.info.txt"),
+      sep = "\t",
+      header = T
+    )
+    saveRDS(repeat_info, paste0(Robject_dir1, "repeat_info.Rdata"))
+  
+  } else {
+  
+    repeat_gtf <- readRDS(paste0(Robject_dir1, "all_repeat_genes.Rdata"))
+    repeat_genes <- gsub("ID ", "", as.character(unique(repeat_gtf$V9)))
+    repeat_info <- readRDS(paste0(Robject_dir1, "repeat_info.Rdata"))
+    
+  }
+  
+  RT <- repeat_info$symbol[grep("LINE|SINE|LTR|SVA", repeat_info$type)]
+
+}
+
 # plot retrotransposons:
 plot_DE(
-  DE_results = primary_vs_ascites_DE,
-  DE_name = "primary_vs_ascites",
+  DE_results = recurrent_vs_primary_DE,
+  DE_name = "recurrent_vs_primary",
   repeat_genes = RT,
   gene_type = "retrotransposon",
-  table_dir3,
-  plot_dir3,
+  table_dir7,
+  plot_dir7,
   FDR_lim = 0.05,
   FC_lim = 0.7,
   num_label = 10,
