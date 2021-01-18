@@ -20,7 +20,8 @@ label_top <- function(DE_res, num, thresh = 0.05) {
   } else {
 
     DE_res$label[
-      DE_res$symbol %in% up_genes | DE_res$symbol %in% down_genes
+      DE_res$symbol %in% up_genes & DE_res$sig == "sig" | 
+      DE_res$symbol %in% down_genes & DE_res$sig == "sig"
     ] <- TRUE
 
   }

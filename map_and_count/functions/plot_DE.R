@@ -12,7 +12,11 @@ plot_DE <- function(
   dot_col,
   label_col,
   up_ctl = "none",
-  up_ctl_col = "none"
+  up_ctl_col = "none",
+  remove_label = NULL,
+  act_sup_cols = FALSE,
+  act_genes = "none",
+  sup_genes = "none"
 
 ) {
 
@@ -42,6 +46,7 @@ plot_DE <- function(
     DE_labelled$up_ctl <- FALSE
     DE_labelled$up_ctl[rownames(DE_labelled) %in% up_ctl] <- TRUE
     DE_labelled$sig[rownames(DE_labelled) %in% up_ctl] <- "up_ctl"
+    DE_labelled$label[rownames(DE_labelled) %in% up_ctl] <- FALSE
   }
 
   # save up and down genes as table:
@@ -68,11 +73,33 @@ plot_DE <- function(
     quote = F
   )
 
-  # make sig column a factor and adjust levels:
-  DE_labelled$sig <- factor(
-    DE_labelled$sig, levels = c("up_ctl", "non_sig", "sig")
-  )
+  # remove any labels needed:
+  DE_labelled$label[rownames(DE_labelled) %in% remove_label] <- FALSE
 
+  # colour activator or supprssor genes:
+  if (act_sup_cols) {
+
+    DE_labelled$sig[
+      rownames(DE_labelled) %in% act_genes & DE_labelled$sig == "sig"
+    ] <- "act"
+    DE_labelled$sig[
+      rownames(DE_labelled) %in% sup_genes & DE_labelled$sig == "sig"
+    ] <- "sup"
+  
+    # make sig column a factor and adjust levels:
+    DE_labelled$sig <- factor(
+      DE_labelled$sig, levels = c("non_sig", "act", "sup")
+    )
+
+  } else {
+
+    # make sig column a factor and adjust levels:
+    DE_labelled$sig <- factor(
+      DE_labelled$sig, levels = c("up_ctl", "non_sig", "sig")
+    )
+
+  }
+  
   # generate volcano plot:
   DE_plot <- gen_plot(
     plot_df = DE_labelled,
