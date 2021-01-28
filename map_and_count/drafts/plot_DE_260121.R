@@ -19,11 +19,8 @@ plot_DE <- function(
   sup_genes = "none",
   plot_CPM = FALSE,
   CPM_data = NULL
-) {
 
-  library(ComplexHeatmap)
-  library(circlize)
-  library(scales)
+) {
 
   print(paste0("Plotting ", gene_type, " DE for ", DE_name))
 
@@ -83,67 +80,35 @@ plot_DE <- function(
 
   if (plot_CPM) {
 
-    # fetch top DE CPM:
-    top_DE <- rbind(
-      DE_labelled[DE_labelled$sig == "up_ctl",],
-      DE_labelled[DE_labelled$label,]
-    )
-    top_CPM <- CPM[rownames(top_DE),]
+    DE_sig <- DE_labelled[DE_labelled$sig == "sig",]
 
-    # order by DE group:
-    if (DE_name == "recurrent_vs_primary") {
-      top_CPM <- cbind(
-        top_CPM[, grep("-4", colnames(top_CPM))],
-        top_CPM[, grep("-2", colnames(top_CPM))]
-      )
-    }
 
-    # scale data:
-    #scaled_top_CPM <- rescale(as.matrix(top_CPM), floor(range(top_CPM)))
-
-    # define heatmap colours:
-    na_less_vector <- unlist(top_CPM)
-    na_less_vector <- na_less_vector[!is.na(na_less_vector)]
-    heatmap_cols <- colorRamp2(c(min(na_less_vector), max(na_less_vector)), 
-      c("white", "#870C0C"), space = "sRGB")
-
-    # generate CPM heatmap:
-    CPM_heatmap <- Heatmap(
-      top_CPM, 
-      na_col = "grey",
-      name = paste0("CPM"), 
-      col = heatmap_cols,
-      cluster_columns = F, cluster_rows = F,
-      show_row_names = T, show_column_names = F,
-      show_row_dend = F,
-      show_heatmap_legend = T,
-      use_raster = T, raster_device = c("png"),
-    )
-
-    pdf(
-      paste0(plot_dir, DE_name, "_", gene_type, "_DE_CPM_heatmap.pdf"),
-      width = 9,
-      height = 7
-    )
-      print(CPM_heatmap)
-    dev.off()
-
-    png(
-      paste0(plot_dir, DE_name, "_", gene_type, "_DE_CPM_heatmap.png"),
-      width = 9,
-      height = 7,
-      res = 300,
-      units = "in"
-    )
-      print(CPM_heatmap)
-    dev.off()
 
   }
 
-  # make sig column a factor and adjust levels:
-  DE_labelled$sig <- factor(
-    DE_labelled$sig, levels = c("up_ctl", "sig", "non_sig")
-  )
+  # colour activator or supprssor genes:
+  if (act_sup_cols) {
+
+    DE_labelled$sig[
+      rownames(DE_labelled) %in% act_genes & DE_labelled$sig == "sig"
+    ] <- "act"
+    DE_labelled$sig[
+      rownames(DE_labelled) %in% sup_genes & DE_labelled$sig == "sig"
+    ] <- "sup"
+  
+    # make sig column a factor and adjust levels:
+    DE_labelled$sig <- factor(
+      DE_labelled$sig, levels = c("act", "sup", "non_sig")
+    )
+
+  } else {
+
+    # make sig column a factor and adjust levels:
+    DE_labelled$sig <- factor(
+      DE_labelled$sig, levels = c("up_ctl", "sig", "non_sig")
+    )
+
+  }
   
   # generate volcano plot:
   DE_plot <- gen_plot(

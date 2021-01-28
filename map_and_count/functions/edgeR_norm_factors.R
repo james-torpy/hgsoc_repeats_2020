@@ -46,10 +46,30 @@ edgeR_norm_factors <- function(
       y = "BCV distance 2", 
       colour = div_type
     )
-    p <- p + scale_colour_manual(
-      labels = levels(plot_df$group), values = dot_col
-    )
-    p <- p + labs(colour = "GIN driver")
+    
+    if (div_type == "GIN_driver") {
+      p <- p + labs(colour = "GIN driver")
+      p <- p + scale_colour_manual(
+        labels = gsub(
+          "CCNE", "CCNE1-amp",
+          gsub(
+            "_", " ", levels(plot_df$group)
+          )
+        ), 
+        values = dot_col
+      )
+    } else if (div_type == "site") {
+      p <- p + labs(colour = "Sample type")
+      p <- p + scale_colour_manual(
+        labels = c("Control", "Recurrent ascites", "Primary tumour"), 
+        values = dot_col
+      )
+    } else {
+      p <- p + labs(colour = div_type)
+      p <- p + scale_colour_manual(
+        labels = levels(plot_df$group), values = dot_col
+      )
+    }
   
     pdf(
       paste0(plot_dir, prefix, "_mds.pdf"),

@@ -1,6 +1,7 @@
 
 project_name <- "hgsoc_repeats/RNA-seq-final"
-include_ascites <- FALSE
+include_ascites <- TRUE
+include_primary_ascites <- FALSE
 
 home_dir <- "/share/ScratchGeneral/jamtor/"
 project_dir <- paste0(home_dir, "projects/", project_name, "/")
@@ -45,12 +46,30 @@ all_counts <- readRDS(
   paste0(in_dir, "all_combined_counts_ensembl_ids.Rdata")
 )
 
+# load sample annot in case sample type removal needed:
+sample_annot <- read.table(
+  paste0(ref_dir, "sample_annot.txt"),
+  sep = "\t",
+  header = T,
+  stringsAsFactors = F
+)
+
 if (!include_ascites) {
+
   # remove ascites:
   all_counts <- all_counts[
     ,grep("-4|-8|-10", colnames(all_counts), invert = T)
   ]
-} 
+
+} else if (!include_primary_ascites) {
+
+  # identify and remove primary ascites:
+  primary_ascites <- sample_annot$ID[sample_annot$site == "primary_ascites"]
+  all_counts <- all_counts[
+    ,!(colnames(all_counts) %in% primary_ascites)
+  ]
+
+}
 
 transcript_annot <- read.table(
   paste0(genome_dir, "gencode.v35.basic.exon.info.txt"),
@@ -231,16 +250,9 @@ dev.off()
 ##########################################################################
 
 # order RNA_df according to sample_annot:
-sample_annot <- read.table(
-  paste0(ref_dir, "sample_annot.txt"),
-  sep = "\t",
-  header = T,
-  stringsAsFactors = F
-)
 sample_annot <- sample_annot[
   sample_annot$ID %in% colnames(gc_counts),
 ]
-
 RNA_df <- RNA_df[sample_annot$ID,]
 
 # calculate proportions of each RNA type:
@@ -263,6 +275,7 @@ sample_dims <- data.frame(
   ),
   length = sample_rle$lengths
 )
+sample_dims$type <- as.character(sample_dims$type)
 sample_dims$start <- sample_dims$start/nrow(sample_annot)
 sample_dims$length_prop <-  sample_dims$length/sum(sample_dims$length)
 sample_dims$midpoint <- sample_dims$start + sample_dims$length_prop/2
@@ -331,11 +344,14 @@ create_quantity_plots <- function(
 
         for (j in 1:nrow(sample_dims)) {
 
-          if (j==1) {
-            annot_col <- "#1B9E77"
+          if (sample_dims$type[j] == "tumour") {
+            annot_col <- "#D95F02"
             stype <- "Tumour"
+          } else if (sample_dims$type[j] == "recurrent_ascites") {
+            annot_col <- "#E7298A"
+            stype <- "Recurrent"
           } else {
-            annot_col <- "#7C5220"
+            annot_col <- "#58B9DB"
             stype <- "Control"
           }
 
@@ -357,7 +373,7 @@ create_quantity_plots <- function(
             width = 0.2, 
             height = 0.3
           ))
-            grid.text(stype, gp=gpar(fontsize=16))
+            grid.text(stype, gp=gpar(fontsize=16, col = annot_col))
           popViewport()
 
         }
@@ -395,6 +411,15 @@ for (i in 1:length(plot_dfs)) {
     type = names(plot_dfs)[i],
     col_pal = col_pal,
     incl_labels = lab
+  )
+
+  write.table(
+    plot_dfs[[i]],
+    paste0(table_dir, names(plot_dfs)[i], "_RNA_types_per_sample.txt"),
+    sep = "\t",
+    col.names = T,
+    row.names = F,
+    quote = F
   )
 
 }

@@ -30,82 +30,69 @@ gen_plot <- function(
       up_ctl_df, 
       mapping = aes(x=logFC, y=-log10(FDR), color=sig)
     )
-    p <- p + scale_color_manual(values = c(up_ctl_col, "grey", dot_col))
-
-  } else if ("act" %in% plot_df$sig | "sup" %in% plot_df$sig) {
-
-    p <- p + scale_color_manual(values = c("grey", "#BF3667", "#58B9DB"))
+    p <- p + scale_color_manual(
+      values = c(up_ctl_col, dot_col, "grey"),
+      labels = c("Positive ctl", "Significant", "Non sig.")
+    )
 
   } else {
 
-    p <- p + scale_color_manual(values = c("grey", dot_col))
+    p <- p + scale_color_manual(
+      values = c(dot_col, "grey"),
+      labels = c("Significant", "Non sig.")
+    )
 
   }
 
-  if ("act" %in% plot_df$sig | "sup" %in% plot_df$sig) {
-
-    act_df <- plot_df[plot_df$sig == "act",]
-    sup_df <- plot_df[plot_df$sig == "sup",]
-
+  if (x_limits1[1] == "none") {
     p <- p + geom_text_repel(
-      act_df[act_df$label,], 
+      plot_df[plot_df$label,], 
       mapping = aes(label=symbol),
-      colour = "#BF3667",
+      colour = c(label_col),
       max.overlaps = 100
     )
-
-     p <- p + geom_text_repel(
-      sup_df[sup_df$label,], 
-      mapping = aes(label=symbol),
-      colour = "#58B9DB",
-      max.overlaps = 100
-    )
-
   } else {
+    p <- p + geom_text_repel(
+      plot_df[plot_df$label,], 
+      mapping = aes(label=symbol),
+      colour = c(label_col),
+      max.overlaps = 100,
+      xlim = x_limits1
+    )
+  }
 
-    if (x_limits1[1] == "none") {
+  if (any(plot_df$up_ctl)) {
+    if (x_limits1 == "none") {
       p <- p + geom_text_repel(
-        plot_df[plot_df$label,], 
+        plot_df[plot_df$up_ctl,], 
         mapping = aes(label=symbol),
-        colour = c(label_col),
+        colour = c(up_ctl_col),
         max.overlaps = 100
+      )
+    } else if (x_limits2[1] == "none") { 
+      p <- p + geom_text_repel(
+        plot_df[plot_df$up_ctl,], 
+        mapping = aes(label=symbol),
+        colour = c(up_ctl_col),
+        max.overlaps = 100,
+        xlim  = x_limits1
       )
     } else {
       p <- p + geom_text_repel(
-        plot_df[plot_df$label,], 
+        plot_df[plot_df$up_ctl,], 
         mapping = aes(label=symbol),
-        colour = c(label_col),
+        colour = c(up_ctl_col),
         max.overlaps = 100,
-        xlim = x_limits1
+        xlim  = x_limits2
       )
     }
-  
-    if (any(plot_df$up_ctl)) {
-      if (x_limits2[1] == "none") { 
-        p <- p + geom_text_repel(
-          plot_df[plot_df$up_ctl,], 
-          mapping = aes(label=symbol),
-          colour = c(up_ctl_col),
-          max.overlaps = 100,
-          xlim  = x_limits1
-        )
-      } else {
-        p <- p + geom_text_repel(
-          plot_df[plot_df$up_ctl,], 
-          mapping = aes(label=symbol),
-          colour = c(up_ctl_col),
-          max.overlaps = 100,
-          xlim  = x_limits2
-        )
-      }
-    }
-
   }
   
   p <- p + theme_cowplot(12)
-  p <- p + theme(legend.position = "none")
-  p <- p + labs(x=paste0("log2 fold change"), y="-log10 FDR")
+  p <- p + theme(legend.text = element_text(size = 12))
+  p <- p + labs(x=paste0("log2 fold change"), y="-log10 FDR", col = "")
   p <- p + xlim(xlims)
+  p <- p + guides(colour = guide_legend(override.aes = list(size=1.8)))
 
   return(p)
 

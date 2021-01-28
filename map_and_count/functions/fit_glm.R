@@ -17,6 +17,10 @@ fit_glm <- function(
       counts=count_df, 
       group = eval(parse(text = paste0("sample_annot$", div_type)))
     ),
+    gc = DGEList(
+      counts = count_df[!(rownames(count_df) %in% repeat_symbols), ], 
+      group = eval(parse(text = paste0("sample_annot$", div_type)))
+    ),
     repeats = DGEList(
       counts = count_df[rownames(count_df) %in% repeat_symbols, ], 
       group = eval(parse(text = paste0("sample_annot$", div_type)))

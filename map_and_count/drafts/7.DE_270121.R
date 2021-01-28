@@ -13,7 +13,7 @@ col_dir <- paste0(home_dir, "R/colour_palettes/")
 sub <- FALSE
 incl_ascites <- TRUE
 incl_primary_ascites <- FALSE
-dot_col <- "#D3BD39"
+dot_col <- "#D6A138"
 label_col <- "#D95F02"
 up_ctl_col <- "#E7298A"
 
@@ -233,14 +233,6 @@ if (!file.exists(paste0(Robject_dir1, "all_repeat_genes.Rdata"))) {
 # isolate retrotransposons:
 RT <- repeat_info$symbol[grep("LINE|SINE|LTR|SVA", repeat_info$type)]
 
-# check order of annotation and counts dfs:
-print(
-  paste0(
-    "Sample annotation in the same order as counts file? ",
-    identical(sample_annot$ID, colnames(formatted_counts))
-  )
-)
-
 
 #############################################################################
 ### 2. Use edgeR on raw counts to choose optimum filtering for 
@@ -334,7 +326,7 @@ plot_DE(
   dot_col = dot_col,
   label_col = label_col,
   up_ctl = c(
-  	"PARP1", "E2F1", "SBK1", "IGF1"
+  	"E2F1", "SBK1", "IGF1"
   ),
   up_ctl_col = up_ctl_col
 )
@@ -414,7 +406,9 @@ plot_DE(
   	"L1HS", "L1PA2", "AluYk2", "AluYd8", 
   	"AluYh3", "AluYb8"
   ),
-  up_ctl_col = up_ctl_col
+  up_ctl_col = up_ctl_col,
+  plot_CPM = TRUE,
+  CPM_data = CPM
 )
 
 # plot centromeric RNA:
@@ -440,122 +434,58 @@ plot_DE(
   up_ctl_col = up_ctl_col
 )
 
-# plot telomeric RNA:
-telsat <- c(as.character(sat), "Satellite/telo")
 
-plot_DE(
-  DE_results = primary_vs_FT_DE,
-  DE_name = "primary_vs_FT",
-  repeat_genes = telsat,
-  gene_type = "satellite_fdr_0.1",
-  table_dir3,
-  plot_dir3,
-  FDR_lim = 0.1,
-  FC_lim = 0.7,
-  num_label = 10,
-  manual_lab = "none",
-  dot_col = dot_col,
-  label_col = label_col,
-  up_ctl = c(
-    "HSATII"
-  ),
-  up_ctl_col = up_ctl_col
-)
+##############################################################################
+#### 4. Plot primary tumour vs FT FPKM of top 20 up and downreg 
+## retrotransposons ###
+##############################################################################
+#
+## calculate CPM:
+#all_counts <- subset(all_counts, select = -transcript_id)
+#reads_per_sample <- apply(all_counts, 2, sum)
+#
+#repeat_CPM <- round(t(t(repeat_counts)/reads_per_sample)*1e6, 2)
+#
+## isolate top sig DE retrotransposons:
+#RT_DE <- primary_vs_FT_DE[RT,]
 
-
-#############################################################################
-### 4. Plot relapse tumour vs FT DE ###
-#############################################################################
-
-Robject_dir4 <- paste0(out_path, "site/recurrent_vs_primary/Rdata/")
-system(paste0("mkdir -p ", Robject_dir4))
-table_dir4 <- paste0(out_path, "site/recurrent_vs_primary/tables/")
-system(paste0("mkdir -p ", table_dir4))
-plot_dir4 <- paste0(out_path, "site/recurrent_vs_primary/plots/")
-system(paste0("mkdir -p ", plot_dir4))
-
-if (!incl_primary_ascites) {
-  recurrent_vs_primary_con <- c(0, 1, -1)
-} else {
-  recurrent_vs_primary_con <- c(0, 0, 1, -1)
-}
-
-recurrent_vs_primary_DE <- do_DE(
-  fit_obj = site_fit$fit,
-  edgeR_obj = site_fit$all_edgeR,
-  con = recurrent_vs_primary_con,
-  descrip = "recurrent_vs_primary",
-  plot_dir = plot_dir4
-)
-
-# plot retrotransposon DEs:
-plot_DE(
-  DE_results = recurrent_vs_primary_DE,
-  DE_name = "recurrent_vs_primary",
-  repeat_genes = RT,
-  gene_type = "retrotransposon",
-  table_dir4,
-  plot_dir4,
-  FDR_lim = 0.05,
-  FC_lim = 0.7,
-  num_label = 10,
-  manual_lab = "none",
-  dot_col = dot_col,
-  label_col = label_col,
-  up_ctl = c("AluYh9", "AluYk2"),
-  up_ctl_col = up_ctl_col
-)
 
 
 #############################################################################
 ### 5. Compare CCNE1 vs HRD DE to Nature paper results ###
 #############################################################################
 
-Robject_dir5 <- paste0(out_path, "GIN_driver/Rdata/")
-system(paste0("mkdir -p ", Robject_dir5))
-table_dir5 <- paste0(out_path, "GIN_driver/tables/")
-system(paste0("mkdir -p ", table_dir5))
-plot_dir5 <- paste0(out_path, "GIN_driver/plots/")
-system(paste0("mkdir -p ", plot_dir5))
-
-GIN_annot <- sample_annot
-
-# remove ascites and fallopian tissue:
-GIN_annot <- GIN_annot[grep("ascites|fallopian_tissue", GIN_annot$site, invert = T), ]
-GIN_counts <- formatted_counts[,colnames(formatted_counts) %in% GIN_annot$ID]
-
-# check order of annotation and counts dfs:
-print(
-  paste0(
-    "Sample annotation in the same order as counts file? ",
-    identical(GIN_annot$ID, colnames(GIN_counts))
-  )
-)
+Robject_dir4 <- paste0(out_path, "GIN_driver/Rdata/")
+system(paste0("mkdir -p ", Robject_dir4))
+table_dir4 <- paste0(out_path, "GIN_driver/tables/")
+system(paste0("mkdir -p ", table_dir4))
+plot_dir4 <- paste0(out_path, "GIN_driver/plots/")
+system(paste0("mkdir -p ", plot_dir4))
 
 # normalise and fit data to GLM:
 GIN_fit <- fit_glm(
-  count_df = GIN_counts,
-  sample_annot = GIN_annot,
+  count_df = formatted_counts,
+  sample_annot = sample_annot,
   repeat_symbols = repeat_symbols,
   cols = col_pal,
   div_type = "GIN_driver",
-  Robject_dir5,
-  plot_dir5,
+  Robject_dir4,
+  plot_dir4,
   func_dir
 )
 
-Robject_dir6 <- paste0(out_path, "GIN_driver/CCNE_vs_HRD/Rdata/")
-system(paste0("mkdir -p ", Robject_dir6))
-table_dir6 <- paste0(out_path, "GIN_driver/CCNE_vs_HRD/tables/")
-system(paste0("mkdir -p ", table_dir6))
-plot_dir6 <- paste0(out_path, "GIN_driver/CCNE_vs_HRD/plots/")
-system(paste0("mkdir -p ", plot_dir6))
+Robject_dir5 <- paste0(out_path, "GIN_driver/CCNE_vs_HRD/Rdata/")
+system(paste0("mkdir -p ", Robject_dir5))
+table_dir5 <- paste0(out_path, "GIN_driver/CCNE_vs_HRD/tables/")
+system(paste0("mkdir -p ", table_dir5))
+plot_dir5 <- paste0(out_path, "GIN_driver/CCNE_vs_HRD/plots/")
+system(paste0("mkdir -p ", plot_dir5))
 
 # perform CCNE vs HRD DE:
 CCNE_vs_HRD_DE <- do_DE(
   fit_obj = GIN_fit$fit,
   edgeR_obj = GIN_fit$all_edgeR,
-  con = c(1, 0, -1, 0),
+  con = c(1, 0, -1, 0, 0, 0),
   descrip = "CCNE_vs_HRD",
   plot_dir = plot_dir5
 )
@@ -564,8 +494,8 @@ CCNE_vs_HRD_nat_vs_me <- DE_compare(
   DE_res = CCNE_vs_HRD_DE,
   descrip = "CCNE_vs_HRD",
   ref_dir,
-  table_dir6,
-  plot_dir6
+  table_dir5,
+  plot_dir5
 )
 
 
@@ -573,46 +503,86 @@ CCNE_vs_HRD_nat_vs_me <- DE_compare(
 ### 6. CCNE1 & HRD vs Unknown GIN driver DE ###
 #############################################################################
 
-Robject_dir7 <- paste0(out_path, "GIN_driver/unknown_vs_known_GIN/Rdata/")
-system(paste0("mkdir -p ", Robject_dir7))
-table_dir7 <- paste0(out_path, "GIN_driver/unknown_vs_known_GIN/tables/")
-system(paste0("mkdir -p ", table_dir7))
-plot_dir7 <- paste0(out_path, "GIN_driver/unknown_vs_known_GIN/plots/")
-system(paste0("mkdir -p ", plot_dir7))
+Robject_dir6 <- paste0(out_path, "GIN_driver/known_vs_unknown_GIN/Rdata/")
+system(paste0("mkdir -p ", Robject_dir6))
+table_dir6 <- paste0(out_path, "GIN_driver/known_vs_unknown_GIN/tables/")
+system(paste0("mkdir -p ", table_dir6))
+plot_dir6 <- paste0(out_path, "GIN_driver/known_vs_unknown_GIN/plots/")
+system(paste0("mkdir -p ", plot_dir6))
+
+GIN_annot <- sample_annot
+
+# remove ascites:
+GIN_annot <- GIN_annot[grep("ascites", GIN_annot$type, invert = T), ]
+
 
 
 # merge CCNE and HRD groups:
-unknown_vs_known_GIN_annot <- GIN_annot
-unknown_vs_known_GIN_annot$GIN_driver[
-  unknown_vs_known_GIN_annot$GIN_driver != "Unknown" &
-  unknown_vs_known_GIN_annot$GIN_driver != "Fallopian_tissue"
+known_vs_unknown_GIN_annot <- GIN_annot
+known_vs_unknown_GIN_annot$GIN_driver[
+  known_vs_unknown_GIN_annot$GIN_driver != "Unknown" &
+  known_vs_unknown_GIN_annot$GIN_driver != "Fallopian_tissue"
 ] <- "Known"
 
-unknown_vs_known_GIN_fit <- fit_glm(
-  count_df = GIN_counts,
-  sample_annot = unknown_vs_known_GIN_annot,
+no_ascites_GIN_fit <- fit_glm(
+  count_df = formatted_counts,
+  sample_annot = known_vs_unknown_GIN_annot,
   repeat_symbols = repeat_symbols,
   cols = col_pal,
   div_type = "GIN_driver",
-  Robject_dir = Robject_dir7,
-  plot_dir = plot_dir7,
+  Robject_dir4,
+  plot_dir4,
   func_dir
 )
 
-unknown_vs_known_GIN_DE <- do_DE(
-  fit_obj = unknown_vs_known_GIN_fit$fit,
-  edgeR_obj = unknown_vs_known_GIN_fit$all_edgeR,
-  con = c(0, -1, 1),
-  descrip = "unknown_vs_known",
-  plot_dir = plot_dir7
+known_vs_unknown_GIN_DE <- do_DE(
+  fit_obj = known_vs_unknown_GIN$fit,
+  edgeR_obj = known_vs_unknown_GIN$all_edgeR,
+  con = c(0, 0, 1, 0, -1, 0),
+  descrip = "HRD_vs_unknown",
+  plot_dir = plot_dir6
 )
+
+if (!exists("RT")) {
+
+  # load repeat annotation:
+  if (!file.exists(paste0(Robject_dir1, "all_repeat_genes.Rdata"))) {
+  
+    repeat_gtf <- read.table(
+      paste0(genome_dir, "custom3.repeats.hg38.gtf"),
+      sep = "\t",
+      header = F,
+      fill = T
+    )
+    saveRDS(repeat_gtf, paste0(Robject_dir1, "all_repeat_genes.Rdata"))
+  
+    repeat_genes <- gsub("ID ", "", as.character(unique(repeat_gtf$V9)))
+  
+    repeat_info <- read.table(
+      paste0(genome_dir, "repeats.hg38.info.txt"),
+      sep = "\t",
+      header = T
+    )
+    saveRDS(repeat_info, paste0(Robject_dir1, "repeat_info.Rdata"))
+  
+  } else {
+  
+    repeat_gtf <- readRDS(paste0(Robject_dir1, "all_repeat_genes.Rdata"))
+    repeat_genes <- gsub("ID ", "", as.character(unique(repeat_gtf$V9)))
+    repeat_info <- readRDS(paste0(Robject_dir1, "repeat_info.Rdata"))
+    
+  }
+  
+  RT <- repeat_info$symbol[grep("LINE|SINE|LTR|SVA", repeat_info$type)]
+
+}
 
 # plot retrotransposon DE:
 plot_DE(
-  DE_results = unknown_vs_known_GIN_DE,
-  DE_name = "unknown_vs_known_GIN",
+  DE_results = known_vs_unknown_GIN_DE,
+  DE_name = "known_vs_unknown_GIN",
   repeat_genes = RT,
-  gene_type = "retrotransposon",
+  gene_type = "repeat",
   table_dir = table_dir7,
   plot_dir = plot_dir7,
   FDR_lim = 0.05,
@@ -626,56 +596,108 @@ plot_DE(
 )
 
 
-############################################################################
-### 7. resistant vs sensitive GIN driver DE ###
+#############################################################################
+### 7. Plot relapse tumour vs FT DE ###
 #############################################################################
 
-Robject_dir8 <- paste0(out_path, "drug_response/resistant_vs_sensitive/Rdata/")
-system(paste0("mkdir -p ", Robject_dir8))
-table_dir8 <- paste0(out_path, "drug_response/resistant_vs_sensitive/tables/")
-system(paste0("mkdir -p ", table_dir8))
-plot_dir8 <- paste0(out_path, "drug_response/resistant_vs_sensitive/plots/")
-system(paste0("mkdir -p ", plot_dir8))
+Robject_dir7 <- paste0(out_path, "site/recurrent_vs_primary/Rdata/")
+system(paste0("mkdir -p ", Robject_dir7))
+table_dir7 <- paste0(out_path, "site/recurrent_vs_primary/tables/")
+system(paste0("mkdir -p ", table_dir7))
+plot_dir7 <- paste0(out_path, "site/recurrent_vs_primary/plots/")
+system(paste0("mkdir -p ", plot_dir7))
 
-# remove ascites and fallopian tissue:
-drug_annot <- sample_annot[grep("ascites|fallopian_tissue", sample_annot$site, invert = T), ]
-drug_counts <- formatted_counts[,colnames(formatted_counts) %in% drug_annot$ID]
+if (!incl_primary_ascites) {
+  recurrent_vs_primary_con <- c(0, 1, -1)
+} else {
+  recurrent_vs_primary_con <- c(0, 0, 1, -1)
+}
 
-# check order of annotation and counts dfs:
-print(
-  paste0(
-    "Sample annotation in the same order as counts file? ",
-    identical(drug_annot$ID, colnames(drug_counts))
-  )
+recurrent_vs_primary_DE <- do_DE(
+  fit_obj = site_fit$fit,
+  edgeR_obj = site_fit$all_edgeR,
+  con = recurrent_vs_primary_con,
+  descrip = "recurrent_vs_primary",
+  plot_dir = plot_dir7
 )
 
-drug_fit <- fit_glm(
-  count_df = drug_counts,
-  sample_annot = drug_annot,
-  repeat_symbols = repeat_symbols,
-  cols = col_pal,
-  div_type = "treatment_response",
-  Robject_dir = Robject_dir8,
-  plot_dir = plot_dir8,
-  func_dir
+# plot repeat DEs:
+plot_DE(
+  DE_results = recurrent_vs_primary_DE,
+  DE_name = "recurrent_vs_primary",
+  repeat_genes = RT,
+  gene_type = "repeat",
+  table_dir7,
+  plot_dir7,
+  FDR_lim = 0.05,
+  FC_lim = 0.7,
+  num_label = 10,
+  manual_lab = "none",
+  dot_col = dot_col,
+  label_col = label_col
 )
 
-resistant_vs_sensitive_DE <- do_DE(
-  fit_obj = drug_fit$fit,
-  edgeR_obj = drug_fit$all_edgeR,
-  con = c(0, 1, -1),
-  descrip = "resistant_vs_sensitive",
-  plot_dir = plot_dir8
-)
+if (!exists("RT")) {
+
+  # load repeat annotation:
+  if (!file.exists(paste0(Robject_dir1, "all_repeat_genes.Rdata"))) {
+  
+    repeat_gtf <- read.table(
+      paste0(genome_dir, "custom3.repeats.hg38.gtf"),
+      sep = "\t",
+      header = F,
+      fill = T
+    )
+    saveRDS(repeat_gtf, paste0(Robject_dir1, "all_repeat_genes.Rdata"))
+  
+    repeat_genes <- gsub("ID ", "", as.character(unique(repeat_gtf$V9)))
+  
+    repeat_info <- read.table(
+      paste0(genome_dir, "repeats.hg38.info.txt"),
+      sep = "\t",
+      header = T
+    )
+    saveRDS(repeat_info, paste0(Robject_dir1, "repeat_info.Rdata"))
+  
+  } else {
+  
+    repeat_gtf <- readRDS(paste0(Robject_dir1, "all_repeat_genes.Rdata"))
+    repeat_genes <- gsub("ID ", "", as.character(unique(repeat_gtf$V9)))
+    repeat_info <- readRDS(paste0(Robject_dir1, "repeat_info.Rdata"))
+    
+  }
+  
+  RT <- repeat_info$symbol[grep("LINE|SINE|LTR|SVA", repeat_info$type)]
+
+}
+
+# calculate CPMs:
+if (!exists("CPM")) {
+
+  if (!file.exists(paste0(Robject_dir1, "CPM.Rdata"))) {
+
+    # calculate CPM:
+    all_counts <- rbind(GC_counts, repeat_counts)
+    reads_per_sample <- apply(all_counts, 2, sum)
+    
+    CPM <- round(t(t(all_counts)/reads_per_sample)*1e6, 2)
+
+    saveRDS(CPM, paste0(Robject_dir1, "CPM.Rdata"))
+
+  } else {
+    CPM <- readRDS(paste0(Robject_dir1, "CPM.Rdata"))
+  }
+
+}
 
 # plot retrotransposon DE:
 plot_DE(
-  DE_results = resistant_vs_sensitive_DE,
-  DE_name = "resistant_vs_sensitive_GIN",
+  DE_results = recurrent_vs_primary_DE,
+  DE_name = "recurrent_vs_primary",
   repeat_genes = RT,
-  gene_type = "retrotransposon",
-  table_dir = table_dir8,
-  plot_dir = plot_dir8,
+  gene_type = "repeat",
+  table_dir = table_dir7,
+  plot_dir = plot_dir7,
   FDR_lim = 0.05,
   FC_lim = 0.7,
   num_label = 10,
@@ -683,11 +705,8 @@ plot_DE(
   dot_col = dot_col,
   label_col = label_col,
   up_ctl = "none",
-  up_ctl_col = "none"
+  up_ctl_col = "none",
+  plot_CPM = TRUE,
+  CPM_data = CPM
 )
-
-
-
-
-
 

@@ -1,14 +1,16 @@
 label_top <- function(DE_res, num, thresh = 0.05) {
  
   DE_res$label <- FALSE
+
+  DE_res_sig <- DE_res[DE_res$sig == "sig",]
   
   up_genes <- head(
-    DE_res$symbol[with(DE_res, order(-logFC, FDR))],
+    DE_res_sig$symbol[with(DE_res_sig, order(-logFC, FDR))],
     num,
   )
   
   down_genes <- head(
-    DE_res$symbol[with(DE_res, order(logFC, FDR))],
+    DE_res_sig$symbol[with(DE_res_sig, order(logFC, FDR))],
     num,
   )
   
@@ -20,8 +22,8 @@ label_top <- function(DE_res, num, thresh = 0.05) {
   } else {
 
     DE_res$label[
-      DE_res$symbol %in% up_genes & DE_res$sig == "sig" | 
-      DE_res$symbol %in% down_genes & DE_res$sig == "sig"
+      DE_res$symbol %in% up_genes | 
+      DE_res$symbol %in% down_genes
     ] <- TRUE
 
   }
